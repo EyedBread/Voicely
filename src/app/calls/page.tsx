@@ -43,7 +43,6 @@ export default function CallsPage() {
     }
   }, []);
 
-  // Handle real-time call events
   const handleEvent = useCallback(
     (event: ServerEvent) => {
       if (event.type === "call_started" || event.type === "call_ended") {
@@ -68,7 +67,6 @@ export default function CallsPage() {
 
   useEffect(() => {
     fetchCalls();
-    // Fallback polling at reduced frequency
     const id = setInterval(fetchCalls, 30000);
     return () => clearInterval(id);
   }, [fetchCalls]);
@@ -76,10 +74,10 @@ export default function CallsPage() {
   const hasActiveCalls = calls.some((c) => c.status === "active" || c.status === "connecting");
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
       <section className="mb-8 animate-fade-in">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h1 className="text-3xl font-bold nexgen-heading text-foreground">
             Call History
           </h1>
           {hasActiveCalls && (
@@ -109,10 +107,10 @@ export default function CallsPage() {
         </p>
       </section>
 
-      {/* Inline Tool Calls */}
+      {/* Tool Calls */}
       {toolCalls.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold text-muted uppercase tracking-wider">
+          <h2 className="mb-3 section-label">
             Recent AI Actions
           </h2>
           <div className="flex gap-3 overflow-x-auto pb-2">
@@ -124,18 +122,18 @@ export default function CallsPage() {
       )}
 
       {loading ? (
-        <div className="glass-card rounded-xl px-5 py-10 text-center animate-fade-in">
+        <div className="glass-card rounded-2xl px-5 py-10 text-center animate-fade-in">
           <div className="mx-auto h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           <p className="mt-3 text-sm text-muted">Loading calls...</p>
         </div>
       ) : calls.length === 0 ? (
-        <div className="glass-card rounded-xl px-5 py-10 text-center animate-fade-in">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/10">
+        <div className="glass-card rounded-2xl px-5 py-10 text-center animate-fade-in">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/8">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="h-8 w-8 text-muted/30"
+              className="h-8 w-8 text-accent/40"
             >
               <path
                 fillRule="evenodd"
@@ -151,14 +149,13 @@ export default function CallsPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Timeline */}
-          <div className="glass-card rounded-xl">
-            <div className="border-b border-card-border/50 px-5 py-4">
-              <h2 className="text-lg font-semibold text-foreground">
+          <div className="glass-card rounded-2xl">
+            <div className="border-b border-card-border px-5 py-4">
+              <h2 className="text-lg font-semibold nexgen-heading text-foreground">
                 Timeline
               </h2>
             </div>
-            <ul className="divide-y divide-card-border/50">
+            <ul className="divide-y divide-card-border">
               {calls.map((call, i) => (
                 <CallRow key={call.id} call={call} index={i} />
               ))}
@@ -187,17 +184,17 @@ function ToolCallCard({ toolCall, index }: { toolCall: ToolCall; index: number }
 
   return (
     <div
-      className="glass-card min-w-[200px] rounded-lg p-3 animate-slide-in shrink-0"
+      className="glass-card min-w-[200px] rounded-2xl p-3 animate-slide-in shrink-0"
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="flex items-center gap-2 mb-2">
-        <span className="flex h-6 w-6 items-center justify-center rounded bg-yellow-500/20 text-[10px] font-bold text-yellow-400">
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-amber-500/10 text-[10px] font-bold text-amber-600">
           {info.icon}
         </span>
         <span className="text-xs font-medium text-foreground">{info.label}</span>
       </div>
       {toolCall.result && (
-        <p className="text-xs text-success/80 truncate">{toolCall.result}</p>
+        <p className="text-xs text-success truncate">{toolCall.result}</p>
       )}
       <p className="mt-1 text-[10px] text-muted/60 tabular-nums">
         {time.toLocaleTimeString()}
@@ -219,11 +216,11 @@ function CallRow({ call, index }: { call: CallSession; index: number }) {
   const directionLabel = call.direction === "inbound" ? "Inbound" : "Outbound";
   const directionIcon = call.direction === "inbound" ? (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-      <path fillRule="evenodd" d="M10 18a.75.75 0 01-.75-.75V4.66L7.3 6.76a.75.75 0 11-1.1-1.02l3.25-3.5a.75.75 0 011.1 0l3.25 3.5a.75.75 0 01-1.1 1.02l-1.95-2.1v12.59A.75.75 0 0110 18z" clipRule="evenodd" />
+      <path fillRule="evenodd" d="M10 2a.75.75 0 01.75.75v12.59l1.95-2.1a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 111.1-1.02l1.95 2.1V2.75A.75.75 0 0110 2z" clipRule="evenodd" />
     </svg>
   ) : (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-      <path fillRule="evenodd" d="M10 2a.75.75 0 01.75.75v12.59l1.95-2.1a.75.75 0 111.1 1.02l-3.25 3.5a.75.75 0 01-1.1 0l-3.25-3.5a.75.75 0 111.1-1.02l1.95 2.1V2.75A.75.75 0 0110 2z" clipRule="evenodd" />
+      <path fillRule="evenodd" d="M10 18a.75.75 0 01-.75-.75V4.66L7.3 6.76a.75.75 0 11-1.1-1.02l3.25-3.5a.75.75 0 011.1 0l3.25 3.5a.75.75 0 01-1.1 1.02l-1.95-2.1v12.59A.75.75 0 0110 18z" clipRule="evenodd" />
     </svg>
   );
 
@@ -234,12 +231,11 @@ function CallRow({ call, index }: { call: CallSession; index: number }) {
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">
-          {/* Direction indicator */}
           <div
-            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${
               call.direction === "inbound"
-                ? "bg-accent/20 text-accent-light"
-                : "bg-success/20 text-success"
+                ? "bg-accent/10 text-accent"
+                : "bg-success/10 text-success"
             }`}
           >
             {directionIcon}
@@ -267,7 +263,7 @@ function CallRow({ call, index }: { call: CallSession; index: number }) {
             )}
 
             {call.outcome && (
-              <p className="mt-1 text-xs text-success/80">
+              <p className="mt-1 text-xs text-success">
                 Outcome: {call.outcome}
               </p>
             )}
@@ -279,7 +275,7 @@ function CallRow({ call, index }: { call: CallSession; index: number }) {
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="font-mono text-sm text-accent-light tabular-nums">{duration}</p>
+          <p className="font-mono text-sm text-accent tabular-nums">{duration}</p>
           <p className="mt-1 text-xs text-muted/60">
             {startDate.toLocaleString()}
           </p>
@@ -291,9 +287,9 @@ function CallRow({ call, index }: { call: CallSession; index: number }) {
 
 function StatusBadge({ status }: { status: CallSession["status"] }) {
   const styles = {
-    connecting: "bg-yellow-500/10 text-yellow-400",
-    active: "bg-success/10 text-success",
-    ended: "bg-muted/10 text-muted",
+    connecting: "bg-amber-500/8 text-amber-600",
+    active: "bg-success/8 text-success",
+    ended: "bg-muted/8 text-muted",
   };
 
   const labels = {
@@ -309,7 +305,7 @@ function StatusBadge({ status }: { status: CallSession["status"] }) {
       <span
         className={`h-1.5 w-1.5 rounded-full ${
           status === "connecting"
-            ? "bg-yellow-500 animate-pulse-dot"
+            ? "bg-amber-500 animate-pulse-dot"
             : status === "active"
               ? "bg-success animate-pulse-dot"
               : "bg-muted"

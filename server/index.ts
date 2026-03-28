@@ -10,6 +10,7 @@ import { meetingOrchestrator } from "./meeting/meetingOrchestrator";
 import type { BridgeServerStatus } from "../shared/types";
 import { sseHandler } from "./events";
 import { runHealthCheck } from "./health";
+import authRoutes from "./auth";
 
 const startTime = Date.now();
 
@@ -30,6 +31,9 @@ app.use((_req, res, next) => {
   }
   next();
 });
+
+// Mount auth routes
+app.use(authRoutes);
 
 // Mount Twilio webhook routes
 app.use(twilioWebhooks);
@@ -198,8 +202,25 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // Create HTTP server and WebSocket server
 const server = createServer(app);
 
-// Inbound call media stream
-const wssInbound = new WebSocketServer({ server, path: "/media-stream" });
+// WebSocket servers — noServer mode to avoid Express 5 intercepting upgrades
+const wssInbound = new WebSocketServer({ noServer: true });
+const wssOutbound = new WebSocketServer({ noServer: true });
+
+server.on("upgrade", (request, socket, head) => {
+  const { pathname } = new URL(request.url ?? "", `http://${request.headers.host}`);
+
+  if (pathname === "/media-stream") {
+    wssInbound.handleUpgrade(request, socket, head, (ws) => {
+      wssInbound.emit("connection", ws, request);
+    });
+  } else if (pathname === "/media-stream-outbound") {
+    wssOutbound.handleUpgrade(request, socket, head, (ws) => {
+      wssOutbound.emit("connection", ws, request);
+    });
+  } else {
+    socket.destroy();
+  }
+});
 
 wssInbound.on("connection", (ws) => {
   console.log("[Bridge] New inbound WebSocket connection on /media-stream");
@@ -209,9 +230,6 @@ wssInbound.on("connection", (ws) => {
     console.error(`[Bridge] Inbound call error: ${err.message}`);
   });
 });
-
-// Outbound call media stream
-const wssOutbound = new WebSocketServer({ server, path: "/media-stream-outbound" });
 
 wssOutbound.on("connection", (ws) => {
   console.log("[Bridge] New outbound WebSocket connection on /media-stream-outbound");

@@ -5,6 +5,8 @@ import Link from "next/link";
 import StatusCard from "@/components/StatusCard";
 import ActiveCalls from "@/components/ActiveCalls";
 import { useServerEvents, type ServerEvent } from "@/hooks/useServerEvents";
+import { useAuth } from "@/hooks/useAuth";
+import { Onboarding } from "@/components/Onboarding";
 
 interface BridgeStatus {
   activeCalls: number;
@@ -53,6 +55,7 @@ const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
 export default function Home() {
+  const { isAuthenticated, loading: authLoading, login } = useAuth();
   const [status, setStatus] = useState<BridgeStatus | null>(null);
   const [online, setOnline] = useState(false);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -89,7 +92,6 @@ export default function Home() {
     }
   }, []);
 
-  // Handle real-time events
   const handleEvent = useCallback(
     (event: ServerEvent) => {
       switch (event.type) {
@@ -193,7 +195,6 @@ export default function Home() {
     fetchCalls();
     fetchMeetings();
     fetchHealth();
-    // Polling as fallback — reduced frequency since SSE provides real-time updates
     const id = setInterval(() => {
       fetchStatus();
       fetchCalls();
@@ -238,15 +239,27 @@ export default function Home() {
   const geminiReady = status?.configuredServices.gemini ?? false;
   const activeCalls = status?.activeCalls ?? 0;
 
+  if (authLoading) {
+    return <div className="flex min-h-[calc(100vh-73px)] items-center justify-center" />;
+  }
+
+  if (!isAuthenticated) {
+    return <Onboarding onComplete={login} />;
+  }
+
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Hero */}
-      <section className="mb-10 animate-fade-in">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Voisli
-        </h1>
-        <p className="mt-2 text-lg text-muted">Your AI Voice Assistant</p>
-        <div className="mt-2 flex items-center gap-2">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
+      {/* Header */}
+      <header className="mb-6 md:mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 animate-fade-in">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold nexgen-heading text-foreground">
+            Hey, welcome back
+          </h1>
+          <p className="mt-1 text-sm sm:text-base text-muted">
+            Your voice assistant dashboard
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
           <span
             className={`h-2 w-2 rounded-full ${
               sseStatus === "connected"
@@ -256,28 +269,17 @@ export default function Home() {
                   : "bg-danger"
             }`}
           />
-          <span className="text-xs text-muted/60">
-            Live updates:{" "}
-            <span
-              className={
-                sseStatus === "connected"
-                  ? "text-success"
-                  : sseStatus === "connecting"
-                    ? "text-warning"
-                    : "text-danger"
-              }
-            >
-              {sseStatus}
-            </span>
+          <span className="text-xs text-muted">
+            {sseStatus === "connected" ? "Live" : sseStatus}
           </span>
         </div>
-      </section>
+      </header>
 
-      {/* Key Metrics — large, projector-friendly */}
+      {/* Key Metrics */}
       <section className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="glass-card rounded-xl p-6 animate-fade-in">
-          <p className="text-sm font-medium text-muted">Active Calls</p>
-          <div className="mt-2 flex items-end gap-3">
+        <div className="glass-card rounded-2xl p-6 animate-fade-in">
+          <p className="section-label">Active Calls</p>
+          <div className="mt-3 flex items-end gap-3">
             <span className="metric-xl text-foreground tabular-nums">
               {activeCalls}
             </span>
@@ -290,9 +292,9 @@ export default function Home() {
             )}
           </div>
         </div>
-        <div className="glass-card rounded-xl p-6 animate-fade-in" style={{ animationDelay: "50ms" }}>
-          <p className="text-sm font-medium text-muted">Active Meetings</p>
-          <div className="mt-2 flex items-end gap-3">
+        <div className="glass-card rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "50ms" }}>
+          <p className="section-label">Active Meetings</p>
+          <div className="mt-3 flex items-end gap-3">
             <span className="metric-xl text-foreground tabular-nums">
               {activeMeetings}
             </span>
@@ -301,15 +303,15 @@ export default function Home() {
             )}
           </div>
         </div>
-        <div className="glass-card rounded-xl p-6 animate-fade-in" style={{ animationDelay: "100ms" }}>
-          <p className="text-sm font-medium text-muted">Uptime</p>
-          <span className="mt-2 block metric-xl text-foreground tabular-nums">
+        <div className="glass-card rounded-2xl p-6 animate-fade-in" style={{ animationDelay: "100ms" }}>
+          <p className="section-label">Uptime</p>
+          <span className="mt-3 block metric-xl text-foreground tabular-nums">
             {online && status ? formatUptime(status.uptime) : "--"}
           </span>
         </div>
       </section>
 
-      {/* Status Cards */}
+      {/* Service Status */}
       <section className="mb-8 grid gap-4 sm:grid-cols-3">
         <StatusCard
           label="Bridge Server"
@@ -335,7 +337,7 @@ export default function Home() {
         />
       </section>
 
-      {/* Additional Service Status (Calendar + Recall) */}
+      {/* Additional Services */}
       {health && (health.services.googleCalendar.status !== "unconfigured" || health.services.recall.status !== "unconfigured") && (
         <section className="mb-8 grid gap-4 sm:grid-cols-2">
           {health.services.googleCalendar.status !== "unconfigured" && (
@@ -363,21 +365,21 @@ export default function Home() {
       </section>
 
       {/* Active Meetings */}
-      <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
+      <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5 text-accent-light"
+                className="h-5 w-5 text-accent"
               >
                 <path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-lg font-semibold nexgen-heading text-foreground">
                 Active Meetings
               </h2>
               <p className="text-sm text-muted">
@@ -389,7 +391,7 @@ export default function Home() {
           </div>
           <Link
             href="/meetings"
-            className="text-sm text-accent-light hover:text-accent transition-colors"
+            className="text-sm font-medium text-accent hover:text-accent-light transition-colors"
           >
             View all
           </Link>
@@ -397,10 +399,10 @@ export default function Home() {
       </section>
 
       {/* Make a Test Call */}
-      <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
+      <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-lg font-semibold nexgen-heading text-foreground">
               Make a Test Call
             </h2>
             <p className="mt-1 text-sm text-muted">
@@ -410,7 +412,7 @@ export default function Home() {
           <button
             onClick={handleTestCall}
             disabled={callLoading || !online}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="nexgen-btn nexgen-btn-primary px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none"
           >
             {callLoading ? "Calling..." : "Place Test Call"}
           </button>
@@ -425,21 +427,21 @@ export default function Home() {
       </section>
 
       {/* Live Activity Feed */}
-      <section className="mb-8 glass-card rounded-xl">
-        <div className="flex items-center justify-between border-b border-card-border/50 px-5 py-4">
+      <section className="mb-8 glass-card rounded-2xl">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-lg font-semibold nexgen-heading text-foreground">
               Live Activity
             </h2>
             {activityFeed.length > 0 && (
               <span className="h-2 w-2 rounded-full bg-success animate-pulse-dot" />
             )}
           </div>
-          <span className="text-xs text-muted">Real-time events</span>
+          <span className="section-label">Real-time events</span>
         </div>
         {activityFeed.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted/10">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/8">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-muted/40">
                 <path fillRule="evenodd" d="M5.625 1.5c-1.036 0-1.875.84-1.875 1.875v17.25c0 1.035.84 1.875 1.875 1.875h12.75c1.035 0 1.875-.84 1.875-1.875V12.75A3.75 3.75 0 0016.5 9h-1.875a1.875 1.875 0 01-1.875-1.875V5.25A3.75 3.75 0 009 1.5H5.625z" clipRule="evenodd" />
               </svg>
@@ -450,7 +452,7 @@ export default function Home() {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-card-border/50 max-h-72 overflow-y-auto scroll-shadow">
+          <ul className="divide-y divide-card-border max-h-72 overflow-y-auto scroll-shadow">
             {activityFeed.map((entry, i) => (
               <li
                 key={entry.id}
@@ -473,21 +475,21 @@ export default function Home() {
       </section>
 
       {/* Recent Call Activity */}
-      <section className="mb-8 glass-card rounded-xl">
-        <div className="flex items-center justify-between border-b border-card-border/50 px-5 py-4">
-          <h2 className="text-lg font-semibold text-foreground">
+      <section className="mb-8 glass-card rounded-2xl">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
+          <h2 className="text-lg font-semibold nexgen-heading text-foreground">
             Recent Activity
           </h2>
           <Link
             href="/calls"
-            className="text-sm text-accent-light hover:text-accent transition-colors"
+            className="text-sm font-medium text-accent hover:text-accent-light transition-colors"
           >
             View all
           </Link>
         </div>
         {recentCalls.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted/10">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/8">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-muted/40">
                 <path fillRule="evenodd" d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z" clipRule="evenodd" />
               </svg>
@@ -495,7 +497,7 @@ export default function Home() {
             <p className="mt-3 text-sm text-muted">No recent calls</p>
           </div>
         ) : (
-          <ul className="divide-y divide-card-border/50">
+          <ul className="divide-y divide-card-border">
             {recentCalls.map((call, i) => (
               <li
                 key={call.id}
@@ -504,10 +506,10 @@ export default function Home() {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-xs ${
                       call.direction === "inbound"
-                        ? "bg-accent/20 text-accent-light"
-                        : "bg-success/20 text-success"
+                        ? "bg-accent/10 text-accent"
+                        : "bg-success/10 text-success"
                     }`}
                   >
                     {call.direction === "inbound" ? "\u2193" : "\u2191"}
@@ -547,62 +549,34 @@ export default function Home() {
 
       {/* Quick Setup */}
       {(!twilioReady || !geminiReady) && (
-        <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
-          <h2 className="text-lg font-semibold text-foreground">
+        <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
+          <h2 className="text-lg font-semibold nexgen-heading text-foreground">
             Quick Setup
           </h2>
           <p className="mt-1 text-sm text-muted">
             Configure these environment variables in your{" "}
-            <code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs text-accent-light">
+            <code className="rounded-lg bg-sidebar-bg px-1.5 py-0.5 font-mono text-xs text-accent">
               .env
             </code>{" "}
             file to get started.
           </p>
           <ul className="mt-4 space-y-2 text-sm">
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_ACCOUNT_SID"
-              description="Twilio Account SID"
-            />
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_AUTH_TOKEN"
-              description="Twilio Auth Token"
-            />
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_PHONE_NUMBER"
-              description="Twilio Phone Number"
-            />
-            <EnvRow
-              ready={geminiReady}
-              name="GEMINI_API_KEY"
-              description="Google Gemini API Key"
-            />
+            <EnvRow ready={twilioReady} name="TWILIO_ACCOUNT_SID" description="Twilio Account SID" />
+            <EnvRow ready={twilioReady} name="TWILIO_AUTH_TOKEN" description="Twilio Auth Token" />
+            <EnvRow ready={twilioReady} name="TWILIO_PHONE_NUMBER" description="Twilio Phone Number" />
+            <EnvRow ready={geminiReady} name="GEMINI_API_KEY" description="Google Gemini API Key" />
           </ul>
         </section>
       )}
 
       {/* How to Test */}
-      <section className="glass-card rounded-xl p-6 animate-fade-in">
-        <h2 className="text-lg font-semibold text-foreground">How to Test</h2>
+      <section className="glass-card rounded-2xl p-6 animate-fade-in">
+        <h2 className="text-lg font-semibold nexgen-heading text-foreground">How to Test</h2>
         <ol className="mt-4 space-y-3 text-sm text-muted">
-          <Step
-            n={1}
-            text="Configure your .env file with Twilio and Gemini API credentials"
-          />
-          <Step
-            n={2}
-            text="Start ngrok to expose the bridge server: ngrok http 8080"
-          />
-          <Step
-            n={3}
-            text="Set the ngrok URL as PUBLIC_SERVER_URL in .env and configure the Twilio webhook to point to it"
-          />
-          <Step
-            n={4}
-            text="Call your Twilio phone number — you'll be connected to the Gemini voice AI"
-          />
+          <Step n={1} text="Configure your .env file with Twilio and Gemini API credentials" />
+          <Step n={2} text="Start ngrok to expose the bridge server: ngrok http 8080" />
+          <Step n={3} text="Set the ngrok URL as PUBLIC_SERVER_URL in .env and configure the Twilio webhook to point to it" />
+          <Step n={4} text="Call your Twilio phone number — you'll be connected to the Gemini voice AI" />
         </ol>
       </section>
     </div>
@@ -638,20 +612,20 @@ function healthStatusToCard(
 
 function EventIcon({ type }: { type: string }) {
   const iconMap: Record<string, { bg: string; label: string }> = {
-    call_started: { bg: "bg-success/20 text-success", label: "C" },
-    call_ended: { bg: "bg-muted/20 text-muted", label: "C" },
-    tool_invoked: { bg: "bg-yellow-500/20 text-yellow-400", label: "T" },
-    meeting_joined: { bg: "bg-accent/20 text-accent-light", label: "M" },
-    transcript_update: { bg: "bg-accent/20 text-accent-light", label: "S" },
-    bot_spoke: { bg: "bg-success/20 text-success", label: "B" },
+    call_started: { bg: "bg-success/10 text-success", label: "C" },
+    call_ended: { bg: "bg-muted/10 text-muted", label: "C" },
+    tool_invoked: { bg: "bg-amber-500/10 text-amber-600", label: "T" },
+    meeting_joined: { bg: "bg-accent/10 text-accent", label: "M" },
+    transcript_update: { bg: "bg-accent/10 text-accent", label: "S" },
+    bot_spoke: { bg: "bg-success/10 text-success", label: "B" },
   };
   const { bg, label } = iconMap[type] ?? {
-    bg: "bg-muted/20 text-muted",
+    bg: "bg-muted/10 text-muted",
     label: "?",
   };
   return (
     <span
-      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${bg}`}
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${bg}`}
     >
       {label}
     </span>
@@ -672,8 +646,8 @@ function EnvRow({
       <span className={`text-base ${ready ? "text-success" : "text-danger"}`}>
         {ready ? "\u2713" : "\u2717"}
       </span>
-      <code className="font-mono text-xs text-accent-light">{name}</code>
-      <span className="text-muted/60">&mdash; {description}</span>
+      <code className="font-mono text-xs text-accent">{name}</code>
+      <span className="text-muted/70">&mdash; {description}</span>
     </li>
   );
 }
@@ -681,7 +655,7 @@ function EnvRow({
 function Step({ n, text }: { n: number; text: string }) {
   return (
     <li className="flex gap-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-light">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-xs font-bold text-accent">
         {n}
       </span>
       <span>{text}</span>
