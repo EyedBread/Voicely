@@ -5,6 +5,13 @@ import { useState } from "react";
 const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
+const MCP_URL =
+  process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/mcp`
+    : typeof window !== "undefined"
+      ? `${window.location.origin}/api/mcp`
+      : "/api/mcp";
+
 const MCP_CONFIG = JSON.stringify(
   {
     mcpServers: {
@@ -78,6 +85,7 @@ export default function IntegrationsPage() {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedRemoteUrl, setCopiedRemoteUrl] = useState(false);
 
   async function handleTestConnection() {
     setTesting(true);
@@ -121,11 +129,95 @@ export default function IntegrationsPage() {
           Integrations
         </h1>
         <p className="mt-2 text-muted">
-          Connect Voisli to Claude and other MCP-compatible AI agents
+          Connect Yapper to Claude and other MCP-compatible AI agents
         </p>
       </section>
 
-      {/* MCP Setup */}
+      {/* Remote MCP — Claude Mobile / Web */}
+      <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-5 w-5 text-accent"
+            >
+              <path d="M10.5 18.75a.75.75 0 000 1.5h3a.75.75 0 000-1.5h-3z" />
+              <path
+                fillRule="evenodd"
+                d="M8.625.75A3.375 3.375 0 005.25 4.125v15.75a3.375 3.375 0 003.375 3.375h6.75a3.375 3.375 0 003.375-3.375V4.125A3.375 3.375 0 0015.375.75h-6.75zM7.5 4.125C7.5 3.504 8.004 3 8.625 3h6.75C16.496 3 17 3.504 17 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-6.75A1.125 1.125 0 018 19.875V4.125z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold nexgen-heading text-foreground">
+            Claude Mobile &amp; Web
+          </h2>
+        </div>
+        <p className="text-sm text-muted mb-5">
+          Connect Yapper to Claude on your phone or on{" "}
+          <span className="text-foreground font-medium">claude.ai</span>.
+        </p>
+
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(MCP_URL).then(() => {
+              setCopiedRemoteUrl(true);
+              setTimeout(() => setCopiedRemoteUrl(false), 4000);
+              window.open("https://claude.ai", "_blank");
+            });
+          }}
+          className="w-full rounded-xl bg-accent px-6 py-3.5 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2.5"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className="h-5 w-5"
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.25 5.5a.75.75 0 00-.75.75v8.5c0 .414.336.75.75.75h8.5a.75.75 0 00.75-.75v-4a.75.75 0 011.5 0v4A2.25 2.25 0 0112.75 17h-8.5A2.25 2.25 0 012 14.75v-8.5A2.25 2.25 0 014.25 4h5a.75.75 0 010 1.5h-5z"
+              clipRule="evenodd"
+            />
+            <path
+              fillRule="evenodd"
+              d="M6.194 12.753a.75.75 0 001.06.053L16.5 4.44v2.81a.75.75 0 001.5 0v-4.5a.75.75 0 00-.75-.75h-4.5a.75.75 0 000 1.5h2.553l-9.056 8.194a.75.75 0 00-.053 1.06z"
+              clipRule="evenodd"
+            />
+          </svg>
+          {copiedRemoteUrl ? "URL Copied — Opening Claude..." : "Open Claude & Copy URL"}
+        </button>
+
+        {copiedRemoteUrl && (
+          <p className="mt-3 text-center text-xs text-success animate-fade-in">
+            Go to Settings &rarr; Integrations &rarr; Add MCP Server &rarr; Paste
+          </p>
+        )}
+
+        <div className="mt-4 pt-4 border-t border-card-border">
+          <p className="text-xs text-muted mb-2">Or copy the URL manually:</p>
+          <div className="relative">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(MCP_URL).then(() => {
+                  setCopiedRemoteUrl(true);
+                  setTimeout(() => setCopiedRemoteUrl(false), 2000);
+                });
+              }}
+              className="absolute right-3 top-2.5 rounded-xl bg-sidebar-bg px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
+            >
+              {copiedRemoteUrl ? "Copied!" : "Copy"}
+            </button>
+            <div className="rounded-2xl border border-card-border bg-sidebar-bg px-4 py-3 font-mono text-sm text-accent-light break-all pr-20">
+              {MCP_URL}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Local MCP Setup (Claude Desktop / Code) */}
       <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
         <div className="flex items-center gap-3 mb-4">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10">
@@ -143,22 +235,22 @@ export default function IntegrationsPage() {
             </svg>
           </div>
           <h2 className="text-lg font-semibold nexgen-heading text-foreground">
-            MCP Server Setup
+            Claude Desktop &amp; Code
           </h2>
         </div>
         <p className="text-sm text-muted mb-4">
-          Voisli exposes its capabilities through the{" "}
-          <span className="text-foreground font-medium">Model Context Protocol (MCP)</span>.
-          Add the following configuration to your Claude Desktop or Claude Code settings to
-          register Voisli as an MCP server.
+          For local development with{" "}
+          <span className="text-foreground font-medium">Claude Desktop</span> or{" "}
+          <span className="text-foreground font-medium">Claude Code</span>,
+          add this stdio MCP server configuration.
         </p>
 
         <ol className="mb-5 space-y-3 text-sm text-muted">
-          <Step n={1} text="Make sure the Voisli bridge server is running (npm run dev:server)" />
+          <Step n={1} text="Make sure the Yapper bridge server is running (npm run dev:server)" />
           <Step n={2} text="Copy the JSON configuration below" />
           <Step n={3} text="For Claude Desktop: paste into Settings > Developer > MCP Servers config" />
           <Step n={4} text="For Claude Code: add to your .claude/settings.json or project .mcp.json" />
-          <Step n={5} text="Update the cwd path to your local Voisli project directory" />
+          <Step n={5} text="Update the cwd path to your local Yapper project directory" />
         </ol>
 
         {/* Config Snippet */}
@@ -285,7 +377,7 @@ export default function IntegrationsPage() {
                 Available Resources
               </h2>
               <p className="text-sm text-muted">
-                {RESOURCES.length} resources for querying Voisli state
+                {RESOURCES.length} resources for querying Yapper state
               </p>
             </div>
           </div>

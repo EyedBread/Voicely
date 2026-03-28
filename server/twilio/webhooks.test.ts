@@ -78,8 +78,15 @@ describe("Twilio webhooks", () => {
     vi.clearAllMocks();
   });
 
-  it("renders session-specific TwiML media stream URLs", async () => {
+  it("renders session-specific TwiML media stream URLs for POST requests", async () => {
     const response = await dispatch("POST", "/twiml/session-123");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.text).toContain("/media-stream/session-123");
+  });
+
+  it("renders session-specific TwiML media stream URLs for GET requests", async () => {
+    const response = await dispatch("GET", "/twiml/session-123");
 
     expect(response.statusCode).toBe(200);
     expect(response.text).toContain("/media-stream/session-123");

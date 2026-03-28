@@ -145,12 +145,13 @@ export class MeetingContextManager {
 
   /**
    * Checks if the latest transcript entry is addressing the bot.
-   * Matches: "Voisli", "hey assistant", "bot", or direct question patterns.
+   * Matches the current and legacy bot names plus direct assistant/bot phrasing.
    */
   detectBotMention(entry: TranscriptEntry): boolean {
     const text = entry.text.toLowerCase();
 
     // Direct name mentions
+    if (text.includes("yapper")) return true;
     if (text.includes("voisli")) return true;
 
     // Assistant references

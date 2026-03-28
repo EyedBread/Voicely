@@ -1,42 +1,36 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { TranscriptEntry, MeetingBotStatus } from "../types";
+import { EventEmitter } from "events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MeetingBotStatus } from "../types";
 
-// ---------------------------------------------------------------------------
-// vi.hoisted — these must exist before vi.mock factories execute
-// ---------------------------------------------------------------------------
-
-type TranscriptCb = (botId: string, entry: TranscriptEntry) => void;
 type StatusCb = (botId: string, status: MeetingBotStatus) => void;
 
-const {
-  mockCreateBot,
-  mockRemoveBot,
-  mockSendAudio,
-  mockHandleQuestion,
-  mockGenerateAudioResponse,
-  capturedCbs,
-} = vi.hoisted(() => ({
-  mockCreateBot: vi.fn(),
-  mockRemoveBot: vi.fn(),
-  mockSendAudio: vi.fn(),
-  mockHandleQuestion: vi.fn(),
-  mockGenerateAudioResponse: vi.fn(),
-  capturedCbs: {
-    transcript: undefined as TranscriptCb | undefined,
-    status: undefined as StatusCb | undefined,
-  },
+const { mockCreateBot, mockRemoveBot, mockSendAudio, statusCallbacks, geminiInstances } =
+  vi.hoisted(() => ({
+    mockCreateBot: vi.fn(),
+    mockRemoveBot: vi.fn(),
+    mockSendAudio: vi.fn(),
+    statusCallbacks: [] as StatusCb[],
+    geminiInstances: [] as Array<{
+      connect: ReturnType<typeof vi.fn>;
+      close: ReturnType<typeof vi.fn>;
+      sendAudio: ReturnType<typeof vi.fn>;
+      sendToolResponse: ReturnType<typeof vi.fn>;
+      emit: (event: string, ...args: unknown[]) => boolean;
+      on: (event: string, listener: (...args: unknown[]) => void) => unknown;
+      onAudio: (callback: (audio: Buffer) => void) => void;
+    }>,
+  }));
+
+const outputMediaHubMock = vi.hoisted(() => ({
+  hasClients: vi.fn(() => false),
+  broadcastAudio: vi.fn(),
+  clear: vi.fn(),
+  closeBot: vi.fn(),
 }));
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
-
 vi.mock("../webhooks.js", () => ({
-  onTranscript: vi.fn((cb: TranscriptCb) => {
-    capturedCbs.transcript = cb;
-  }),
   onStatusChange: vi.fn((cb: StatusCb) => {
-    capturedCbs.status = cb;
+    statusCallbacks.push(cb);
   }),
 }));
 
@@ -46,29 +40,45 @@ vi.mock("../recallClient.js", () => ({
   sendAudioToMeeting: (...args: unknown[]) => mockSendAudio(...args),
 }));
 
-vi.mock("../meetingAI.js", () => ({
-  MeetingAI: class MockMeetingAI {
-    handleQuestion = mockHandleQuestion;
-    generateAudioResponse = mockGenerateAudioResponse;
+vi.mock("../outputMediaHub.js", () => ({
+  outputMediaHub: outputMediaHubMock,
+}));
+
+vi.mock("../../gemini/liveClient.js", () => ({
+  GeminiLiveSession: class {
+    private emitter = new EventEmitter();
+    connect = vi.fn(async () => {
+      this.emitter.emit("connected");
+    });
+    close = vi.fn(() => {
+      this.emitter.emit("disconnected");
+    });
+    sendAudio = vi.fn();
+    sendToolResponse = vi.fn();
+    constructor(...args: unknown[]) {
+      void args;
+      geminiInstances.push(this as never);
+    }
+    emit(event: string, ...args: unknown[]) {
+      return this.emitter.emit(event, ...args);
+    }
+    on(event: string, listener: (...args: unknown[]) => void) {
+      this.emitter.on(event, listener);
+      return this;
+    }
+    onAudio(callback: (audio: Buffer) => void): void {
+      this.emitter.on("audio", callback);
+    }
   },
 }));
 
-// Import the class AFTER mocks are set up
-import { MeetingOrchestrator } from "../meetingOrchestrator";
+import {
+  MeetingOrchestrator,
+  findWakeMatch,
+  normalizeWakeText,
+} from "../meetingOrchestrator";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function makeEntry(
-  speaker: string,
-  text: string,
-  timestamp?: Date
-): TranscriptEntry {
-  return { speaker, text, timestamp: timestamp ?? new Date() };
-}
-
-function defaultBotResponse(id = "bot_123") {
+function botResponse(id = "bot_123") {
   return {
     id,
     status_changes: [],
@@ -76,472 +86,195 @@ function defaultBotResponse(id = "bot_123") {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe("MeetingOrchestrator", () => {
   let orch: MeetingOrchestrator;
+  let gemini: (typeof geminiInstances)[number];
 
-  beforeEach(() => {
-    capturedCbs.transcript = undefined;
-    capturedCbs.status = undefined;
-
+  beforeEach(async () => {
     mockCreateBot.mockReset();
     mockRemoveBot.mockReset();
     mockSendAudio.mockReset();
-    mockHandleQuestion.mockReset();
-    mockGenerateAudioResponse.mockReset();
+    statusCallbacks.length = 0;
+    geminiInstances.length = 0;
 
-    // Default mocks
-    mockCreateBot.mockResolvedValue(defaultBotResponse());
+    mockCreateBot.mockResolvedValue(botResponse());
     mockRemoveBot.mockResolvedValue(undefined);
     mockSendAudio.mockResolvedValue(undefined);
-    mockHandleQuestion.mockResolvedValue("Here is the answer.");
-    mockGenerateAudioResponse.mockResolvedValue(Buffer.from([0x01, 0x02]));
+    outputMediaHubMock.hasClients.mockReset();
+    outputMediaHubMock.broadcastAudio.mockReset();
+    outputMediaHubMock.clear.mockReset();
+    outputMediaHubMock.closeBot.mockReset();
+    outputMediaHubMock.hasClients.mockReturnValue(false);
 
-    // Use a very short cooldown for fast tests
     orch = new MeetingOrchestrator({ cooldownMs: 50 });
+    await orch.joinMeeting("https://meet.google.com/abc");
+    gemini = geminiInstances[0];
   });
 
   afterEach(() => {
     orch.removeAllListeners();
   });
 
-  // -------------------------------------------------------------------------
-  // Meeting lifecycle: join → active → leave
-  // -------------------------------------------------------------------------
+  it("creates a session and connects Gemini Live when joining", () => {
+    expect(mockCreateBot).toHaveBeenCalledWith(
+      "https://meet.google.com/abc",
+      undefined,
+    );
+    expect(gemini.connect).toHaveBeenCalled();
+    expect(orch.getSession("bot_123")?.status).toBe("creating");
+  });
 
-  describe("meeting lifecycle", () => {
-    it("creates a session when joining a meeting", async () => {
-      const session = await orch.joinMeeting("https://meet.google.com/abc");
-
-      expect(mockCreateBot).toHaveBeenCalledWith(
-        "https://meet.google.com/abc",
-        undefined
-      );
-      expect(session.botId).toBe("bot_123");
-      expect(session.meetingUrl).toBe("https://meet.google.com/abc");
-      expect(session.status).toBe("creating");
-      expect(session.participants).toEqual([]);
+  it("forwards realtime mixed audio into Gemini", () => {
+    orch.handleRealtimeEvent({
+      event: "audio_mixed_raw.data",
+      data: {
+        bot: { id: "bot_123" },
+        data: {
+          buffer: Buffer.from([0x01, 0x02, 0x03]).toString("base64"),
+        },
+      },
     });
 
-    it("passes custom bot name to createBot", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc", "My Bot");
+    expect(gemini.sendAudio).toHaveBeenCalledWith(Buffer.from([0x01, 0x02, 0x03]));
+  });
 
-      expect(mockCreateBot).toHaveBeenCalledWith(
-        "https://meet.google.com/abc",
-        "My Bot"
-      );
+  it("does not speak back before wake word", async () => {
+    gemini.emit("inputTranscription", "Let's ship next week");
+    gemini.emit("outputTranscription", "I can help with that");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockSendAudio).not.toHaveBeenCalled();
+  });
+
+  it("responds when the wake word is heard", async () => {
+    const responses: Array<{ question: string; answer: string }> = [];
+    orch.on("response", (_botId, question, answer) => {
+      responses.push({ question, answer });
     });
 
-    it("tracks the session in getAllSessions", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
+    gemini.emit("inputTranscription", "Hey Yapper, what's next?");
+    gemini.emit("outputTranscription", "We should review the roadmap.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
 
-      const sessions = orch.getAllSessions();
-      expect(sessions).toHaveLength(1);
-      expect(sessions[0].botId).toBe("bot_123");
+    await vi.waitFor(() => {
+      expect(mockSendAudio).toHaveBeenCalledTimes(1);
     });
 
-    it("retrieves a session by botId", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const session = orch.getSession("bot_123");
-      expect(session).toBeDefined();
-      expect(session!.botId).toBe("bot_123");
-    });
-
-    it("returns undefined for unknown botId", () => {
-      expect(orch.getSession("nonexistent")).toBeUndefined();
-    });
-
-    it("leaves a meeting and sets status to done", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const endedPromise = new Promise<void>((resolve) => {
-        orch.on("ended", () => resolve());
-      });
-
-      await orch.leaveMeeting("bot_123");
-      await endedPromise;
-
-      expect(mockRemoveBot).toHaveBeenCalledWith("bot_123");
-      const session = orch.getSession("bot_123");
-      expect(session!.status).toBe("done");
-      expect(session!.endedAt).toBeInstanceOf(Date);
-    });
-
-    it("throws when leaving a nonexistent session", async () => {
-      await expect(orch.leaveMeeting("nope")).rejects.toThrow(
-        /No session found/
-      );
-    });
-
-    it("handles removeBot errors gracefully during leave", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-      mockRemoveBot.mockRejectedValue(new Error("Already left"));
-
-      // Should not throw
-      await orch.leaveMeeting("bot_123");
-
-      const session = orch.getSession("bot_123");
-      expect(session!.status).toBe("done");
-    });
-
-    it("emits statusChange when status updates via webhook", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const statusEvents: string[] = [];
-      orch.on("statusChange", (session) => statusEvents.push(session.status));
-
-      capturedCbs.status!("bot_123", "in_call");
-
-      expect(statusEvents).toEqual(["in_call"]);
-      expect(orch.getSession("bot_123")!.status).toBe("in_call");
-    });
-
-    it("sets endedAt and emits 'ended' on done status via webhook", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const endedSessions: string[] = [];
-      orch.on("ended", (session) => endedSessions.push(session.botId));
-
-      capturedCbs.status!("bot_123", "done");
-
-      expect(endedSessions).toEqual(["bot_123"]);
-      expect(orch.getSession("bot_123")!.endedAt).toBeInstanceOf(Date);
-    });
-
-    it("cleans up on error status via webhook", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const endedSessions: string[] = [];
-      orch.on("ended", (session) => endedSessions.push(session.botId));
-
-      capturedCbs.status!("bot_123", "error");
-
-      expect(endedSessions).toEqual(["bot_123"]);
-      expect(orch.getSession("bot_123")!.status).toBe("error");
-    });
-
-    it("ignores status change for unknown bot", () => {
-      // Should not throw
-      capturedCbs.status!("unknown_bot", "in_call");
+    expect(mockSendAudio).toHaveBeenCalledWith(
+      "bot_123",
+      expect.any(Buffer),
+      24000,
+    );
+    expect(responses[0]).toEqual({
+      question: "Hey Yapper, what's next?",
+      answer: "We should review the roadmap.",
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Transcript handling and context
-  // -------------------------------------------------------------------------
+  it("matches phonetic wake phrase variants", () => {
+    expect(normalizeWakeText("Hey, yapper!")).toBe("hey yapper");
+    expect(findWakeMatch("Hey, yapper").matchedAlias).toBe("yapper");
+    expect(findWakeMatch("ok yaper").matchedAlias).toBe("yaper");
+    expect(findWakeMatch("yo yapr").matchedAlias).toBe("yapr");
+    expect(findWakeMatch("Hey, yappa.").matchedAlias).toBe("yappa");
+    expect(findWakeMatch("Hey assistant").matchedAlias).toBe("assistant");
+    expect(findWakeMatch("voyage planning").matchedAlias).toBeNull();
+  });
 
-  describe("transcript handling", () => {
-    it("adds transcript entries to the context manager", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
+  it("responds when a phonetic wake phrase is heard", async () => {
+    gemini.emit("inputTranscription", "Hey, yaper, can you hear me?");
+    gemini.emit("outputTranscription", "Yes, I can hear you.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
 
-      capturedCbs.transcript!("bot_123", makeEntry("Alice", "Hello everyone"));
-      capturedCbs.transcript!("bot_123", makeEntry("Bob", "Hi Alice"));
-
-      const transcript = orch.getTranscript("bot_123");
-      expect(transcript).toHaveLength(2);
-      expect(transcript[0].speaker).toBe("Alice");
-      expect(transcript[1].speaker).toBe("Bob");
+    await vi.waitFor(() => {
+      expect(mockSendAudio).toHaveBeenCalledTimes(1);
     });
 
-    it("updates session participants from transcript", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
+    expect(mockSendAudio).toHaveBeenCalledWith(
+      "bot_123",
+      expect.any(Buffer),
+      24000,
+    );
+  });
 
-      capturedCbs.transcript!("bot_123", makeEntry("Alice", "Hello"));
-      capturedCbs.transcript!("bot_123", makeEntry("Bob", "Hi"));
+  it("allows a follow-up turn during the wake window", async () => {
+    gemini.emit("inputTranscription", "Hey Yapper, first question");
+    gemini.emit("outputTranscription", "First answer");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
 
-      const session = orch.getSession("bot_123");
-      expect(session!.participants).toHaveLength(2);
-      expect(session!.participants.map((p) => p.name).sort()).toEqual([
-        "Alice",
-        "Bob",
-      ]);
+    await vi.waitFor(() => {
+      expect(mockSendAudio).toHaveBeenCalledTimes(1);
     });
 
-    it("returns empty transcript for unknown bot", () => {
-      expect(orch.getTranscript("nonexistent")).toEqual([]);
-    });
+    await new Promise((resolve) => setTimeout(resolve, 900));
 
-    it("returns summary for a session", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
+    gemini.emit("inputTranscription", "And what about tomorrow?");
+    gemini.emit("outputTranscription", "Tomorrow looks clear.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
 
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hello everyone")
-      );
-
-      const summary = orch.getSummary("bot_123");
-      expect(summary).toContain("Alice");
-    });
-
-    it("returns fallback summary for unknown bot", () => {
-      expect(orch.getSummary("nonexistent")).toBe("No session found.");
-    });
-
-    it("ignores transcript for unknown bot", () => {
-      // Should not throw
-      capturedCbs.transcript!("unknown_bot", makeEntry("Alice", "Hello"));
+    await vi.waitFor(() => {
+      expect(mockSendAudio).toHaveBeenCalledTimes(2);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Question detection → AI response → audio output pipeline
-  // -------------------------------------------------------------------------
-
-  describe("bot mention → AI response pipeline", () => {
-    it("responds when bot is mentioned by name", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      const responseEvents: Array<{
-        botId: string;
-        question: string;
-        answer: string;
-      }> = [];
-      orch.on("response", (botId, question, answer) =>
-        responseEvents.push({ botId, question, answer })
-      );
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, when is our next standup?")
-      );
-
-      // Wait for async response pipeline
-      await vi.waitFor(() => {
-        expect(responseEvents).toHaveLength(1);
-      });
-
-      expect(mockHandleQuestion).toHaveBeenCalledWith(
-        "Hey Voisli, when is our next standup?",
-        expect.stringContaining("Alice")
-      );
-      expect(mockGenerateAudioResponse).toHaveBeenCalledWith(
-        "Here is the answer."
-      );
-      expect(mockSendAudio).toHaveBeenCalledWith(
-        "bot_123",
-        expect.any(Buffer)
-      );
-      expect(responseEvents[0]).toEqual({
-        botId: "bot_123",
-        question: "Hey Voisli, when is our next standup?",
-        answer: "Here is the answer.",
-      });
+  it("suppresses tool calls when wake word was not detected", async () => {
+    gemini.emit("toolCall", {
+      functionCalls: [{ name: "search_business", args: { query: "pizza" } }],
     });
 
-    it("does not respond to normal conversation", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "I think we should ship next week")
-      );
-
-      // Give time for async handler (if it were called)
-      await new Promise((r) => setTimeout(r, 100));
-
-      expect(mockHandleQuestion).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(gemini.sendToolResponse).toHaveBeenCalledTimes(1);
     });
 
-    it("skips sending audio when buffer is empty", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-      mockGenerateAudioResponse.mockResolvedValue(Buffer.alloc(0));
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, what time is it?")
-      );
-
-      await vi.waitFor(() => {
-        expect(mockHandleQuestion).toHaveBeenCalled();
-      });
-
-      // Wait a tick for sendAudio check
-      await new Promise((r) => setTimeout(r, 10));
-
-      expect(mockSendAudio).not.toHaveBeenCalled();
-    });
-
-    it("uses fallback answer when AI question handling fails", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-      mockHandleQuestion.mockRejectedValue(new Error("AI broke"));
-
-      const responseEvents: Array<{
-        botId: string;
-        question: string;
-        answer: string;
-      }> = [];
-      orch.on("response", (botId, question, answer) =>
-        responseEvents.push({ botId, question, answer })
-      );
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
-      );
-
-      await vi.waitFor(() => {
-        expect(responseEvents).toHaveLength(1);
-      });
-
-      // Should use fallback answer instead of crashing
-      expect(responseEvents[0].answer).toContain("trouble processing");
-      // Should still attempt to generate audio with the fallback answer
-      expect(mockGenerateAudioResponse).toHaveBeenCalledWith(
-        expect.stringContaining("trouble processing")
-      );
-    });
-
-    it("continues operating when TTS fails", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-      mockGenerateAudioResponse.mockRejectedValue(new Error("TTS down"));
-
-      const responseEvents: Array<{
-        botId: string;
-        question: string;
-        answer: string;
-      }> = [];
-      orch.on("response", (botId, question, answer) =>
-        responseEvents.push({ botId, question, answer })
-      );
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
-      );
-
-      await vi.waitFor(() => {
-        expect(responseEvents).toHaveLength(1);
-      });
-
-      // Should still emit response event despite TTS failure
-      expect(responseEvents[0].answer).toBe("Here is the answer.");
-      // Should not have attempted to send audio since TTS returned empty buffer
-      expect(mockSendAudio).not.toHaveBeenCalled();
-    });
-
-    it("continues operating when sendAudio fails", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-      mockSendAudio.mockRejectedValue(new Error("Recall API down"));
-
-      const responseEvents: Array<{
-        botId: string;
-        question: string;
-        answer: string;
-      }> = [];
-      orch.on("response", (botId, question, answer) =>
-        responseEvents.push({ botId, question, answer })
-      );
-
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
-      );
-
-      await vi.waitFor(() => {
-        expect(responseEvents).toHaveLength(1);
-      });
-
-      // Should still emit response event despite send failure
-      expect(responseEvents[0].answer).toBe("Here is the answer.");
+    expect(gemini.sendToolResponse.mock.calls[0][0][0]).toMatchObject({
+      name: "search_business",
+      response: { ignored: true },
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Cooldown logic
-  // -------------------------------------------------------------------------
+  it("drops model output before wake", async () => {
+    gemini.emit("outputTranscription", "I should stay silent.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
 
-  describe("cooldown logic", () => {
-    it("skips response when cooldown is active", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockSendAudio).not.toHaveBeenCalled();
+  });
 
-      // First mention — should respond
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, first question?")
-      );
+  it("streams audio chunks to output media when connected", async () => {
+    outputMediaHubMock.hasClients.mockReturnValue(true);
+    orch.handleOutputMediaConnection("bot_123", true);
 
-      await vi.waitFor(() => {
-        expect(mockHandleQuestion).toHaveBeenCalledTimes(1);
-      });
+    gemini.emit("inputTranscription", "Hey Assistant, can you hear me?");
+    gemini.emit("outputTranscription", "Yes.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("audio", Buffer.alloc(2400));
+    gemini.emit("turnComplete");
 
-      // Second mention immediately — should be skipped (cooldown = 50ms)
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Bob", "Hey Voisli, second question?")
-      );
-
-      // Give it a moment, but it should NOT trigger another response
-      await new Promise((r) => setTimeout(r, 30));
-
-      expect(mockHandleQuestion).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(outputMediaHubMock.broadcastAudio).toHaveBeenCalledTimes(2);
     });
 
-    it("responds again after cooldown expires", async () => {
-      orch = new MeetingOrchestrator({ cooldownMs: 50 });
-      await orch.joinMeeting("https://meet.google.com/abc");
+    expect(outputMediaHubMock.clear).toHaveBeenCalled();
+    expect(mockSendAudio).not.toHaveBeenCalled();
+  });
 
-      // First mention
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, first?")
-      );
+  it("updates session status from webhook callbacks", () => {
+    statusCallbacks[0]("bot_123", "in_call");
+    expect(orch.getSession("bot_123")?.status).toBe("in_call");
+  });
 
-      await vi.waitFor(() => {
-        expect(mockHandleQuestion).toHaveBeenCalledTimes(1);
-      });
-
-      // Wait for cooldown to expire
-      await new Promise((r) => setTimeout(r, 80));
-
-      // Second mention — should respond
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Bob", "Hey Voisli, second?")
-      );
-
-      await vi.waitFor(() => {
-        expect(mockHandleQuestion).toHaveBeenCalledTimes(2);
-      });
-    });
-
-    it("prevents concurrent responses for the same session", async () => {
-      await orch.joinMeeting("https://meet.google.com/abc");
-
-      // Make handleQuestion slow
-      let resolveFirst!: () => void;
-      const firstPromise = new Promise<string>((resolve) => {
-        resolveFirst = () => resolve("Answer 1");
-      });
-      mockHandleQuestion.mockReturnValueOnce(firstPromise);
-
-      // First mention — starts responding
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Alice", "Hey Voisli, question 1?")
-      );
-
-      // Give the async handler a tick to start
-      await new Promise((r) => setTimeout(r, 10));
-
-      // Second mention while first is still processing — should be skipped
-      capturedCbs.transcript!(
-        "bot_123",
-        makeEntry("Bob", "Hey Voisli, question 2?")
-      );
-
-      // Resolve the first response
-      resolveFirst();
-
-      await vi.waitFor(() => {
-        expect(mockGenerateAudioResponse).toHaveBeenCalledTimes(1);
-      });
-
-      // Only the first question was handled
-      expect(mockHandleQuestion).toHaveBeenCalledTimes(1);
-    });
+  it("cleans up the Gemini session when leaving", async () => {
+    await orch.leaveMeeting("bot_123");
+    expect(mockRemoveBot).toHaveBeenCalledWith("bot_123");
+    expect(gemini.close).toHaveBeenCalled();
+    expect(outputMediaHubMock.closeBot).toHaveBeenCalledWith("bot_123");
+    expect(orch.getSession("bot_123")?.status).toBe("done");
   });
 });

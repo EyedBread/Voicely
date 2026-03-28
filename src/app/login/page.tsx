@@ -38,7 +38,7 @@ function LoginForm() {
       }
 
       login(data);
-      router.push("/");
+      router.push("/app");
     } catch {
       setError("Could not reach server");
     } finally {
@@ -53,7 +53,7 @@ function LoginForm() {
           Log In
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Sign in to your Voisli account
+          Sign in to your Yapper account
         </p>
 
         {justRegistered && (

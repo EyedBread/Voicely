@@ -22,7 +22,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-73px)] flex-col items-center justify-center px-4 py-10">
+    <div className="flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
         {/* Step content */}
         <div key={step} className="animate-step-enter">
@@ -106,7 +106,7 @@ function StepHook() {
         Give your AI a voice
       </h1>
       <p className="mx-auto mt-4 max-w-md text-lg text-muted">
-        Voisli connects AI agents to phone calls, meetings, and calendars.
+        Yapper connects AI agents to phone calls, meetings, and calendars.
         One server. Full voice capabilities.
       </p>
 
@@ -123,7 +123,7 @@ function StepHook() {
         </div>
         <div className="glass-card rounded-xl px-4 py-3 animate-fade-in" style={{ animationDelay: "400ms" }}>
           <p className="text-xs text-muted">Bridge</p>
-          <p className="text-sm font-semibold text-accent-light">Voisli</p>
+          <p className="text-sm font-semibold text-accent-light">Yapper</p>
         </div>
         <div className="flex items-center animate-fade-in" style={{ animationDelay: "550ms" }}>
           <span className="h-px w-6 bg-accent/50" />

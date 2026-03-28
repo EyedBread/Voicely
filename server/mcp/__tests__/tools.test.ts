@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTools } from "../tools.js";
+import type { BridgeAPIFn } from "../bridge.js";
 
-vi.mock("../bridge.js", () => ({
-  callBridgeAPI: vi.fn(),
-}));
-
-import { callBridgeAPI } from "../bridge.js";
+const mockCallBridgeAPI = vi.fn() as unknown as BridgeAPIFn & ReturnType<typeof vi.fn>;
 
 type RegisteredTool = {
   name: string;
@@ -21,7 +18,7 @@ function captureTools(): RegisteredTool[] {
     }),
   } as unknown as McpServer;
 
-  registerTools(server);
+  registerTools(server, mockCallBridgeAPI);
   return tools;
 }
 
@@ -45,7 +42,7 @@ describe("registerTools", () => {
   });
 
   it("initiate_call forwards phone_number and session_id", async () => {
-    vi.mocked(callBridgeAPI).mockResolvedValue({
+    mockCallBridgeAPI.mockResolvedValue({
       ok: true,
       status: 200,
       data: { status: "dialling" },
@@ -57,7 +54,7 @@ describe("registerTools", () => {
       session_id: "session-1",
     }) as { content: Array<{ text: string }> };
 
-    expect(callBridgeAPI).toHaveBeenCalledWith("POST", "/calls/initiate", {
+    expect(mockCallBridgeAPI).toHaveBeenCalledWith("POST", "/calls/initiate", {
       phoneNumber: "+15551234567",
       sessionId: "session-1",
     });
@@ -65,7 +62,7 @@ describe("registerTools", () => {
   });
 
   it("join_meeting forwards meeting_url and session_id", async () => {
-    vi.mocked(callBridgeAPI).mockResolvedValue({
+    mockCallBridgeAPI.mockResolvedValue({
       ok: true,
       status: 200,
       data: { status: "joining", bot_id: "bot-1" },
@@ -77,7 +74,7 @@ describe("registerTools", () => {
       session_id: "session-2",
     }) as { content: Array<{ text: string }> };
 
-    expect(callBridgeAPI).toHaveBeenCalledWith("POST", "/meetings/join", {
+    expect(mockCallBridgeAPI).toHaveBeenCalledWith("POST", "/meetings/join", {
       meetingUrl: "https://meet.google.com/abc-defg-hij",
       sessionId: "session-2",
     });

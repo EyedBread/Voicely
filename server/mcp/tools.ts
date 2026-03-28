@@ -1,8 +1,11 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { callBridgeAPI } from "./bridge.js";
+import { callBridgeAPI, type BridgeAPIFn } from "./bridge.js";
 
-export function registerTools(server: McpServer): void {
+export function registerTools(
+  server: McpServer,
+  bridgeClient: BridgeAPIFn = callBridgeAPI
+): void {
   server.registerTool(
     "initiate_call",
     {
@@ -16,7 +19,7 @@ export function registerTools(server: McpServer): void {
     async ({ phone_number, session_id }) => {
       const body = { phoneNumber: phone_number, sessionId: session_id };
 
-      const res = await callBridgeAPI("POST", "/calls/initiate", body);
+      const res = await bridgeClient("POST", "/calls/initiate", body);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: JSON.stringify(res.data) }], isError: true };
       }
@@ -37,12 +40,11 @@ export function registerTools(server: McpServer): void {
     async ({ meeting_url, session_id }) => {
       const body = { meetingUrl: meeting_url, sessionId: session_id };
 
-      const res = await callBridgeAPI("POST", "/meetings/join", body);
+      const res = await bridgeClient("POST", "/meetings/join", body);
       if (!res.ok) {
         return { content: [{ type: "text" as const, text: JSON.stringify(res.data) }], isError: true };
       }
       return { content: [{ type: "text" as const, text: JSON.stringify(res.data) }] };
     }
   );
-
 }

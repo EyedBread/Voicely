@@ -9,11 +9,8 @@ import { getSystemPrompt, type CallContext } from "./gemini/prompts";
 import type { CallSession, CallStatus, CallDirection } from "../shared/types";
 import { emitServerEvent } from "./events";
 
-// Minimum audio chunk size (in bytes) to send to Gemini.
-// Lower = less latency. 1600 bytes = ~50ms of 16kHz 16-bit mono PCM.
+// Lower chunk sizes reduce latency for live conversations.
 const MIN_AUDIO_CHUNK_BYTES = 1600;
-
-// Max time (ms) audio can sit in the buffer before being flushed, even if under threshold.
 const AUDIO_FLUSH_INTERVAL_MS = 40;
 
 export interface CallOrchestratorOptions {
@@ -65,33 +62,41 @@ export class CallOrchestrator extends EventEmitter {
   private wireUpTwilio(): void {
     this.twilioStream.on("start", ({ callSid }) => {
       this.session.twilioCallSid = callSid;
-      console.log(`[Orchestrator] Call started — callSid: ${callSid}, sessionId: ${this.session.id}`);
+      console.log(
+        `[Orchestrator] Call started callSid=${callSid} sessionId=${this.session.id} direction=${this.session.direction} purpose=${JSON.stringify(this.session.purpose ?? "")}`,
+      );
 
-      // Connect to Gemini once Twilio stream is ready
       this.geminiSession.connect().catch((err) => {
-        console.error(`[Orchestrator] Failed to connect to Gemini: ${err.message}`);
+        console.error(
+          `[Orchestrator] Failed to connect to Gemini: ${err.message}`,
+        );
         this.emit("error", err);
         this.cleanup();
       });
     });
 
     this.twilioStream.on("audio", (base64MulawAudio: string) => {
-      // Convert Twilio audio (mulaw 8kHz) → Gemini (PCM 16kHz) and send
       const pcm16k = twilioToGemini(base64MulawAudio);
+      console.log(
+        `[Orchestrator] Twilio audio received base64Length=${base64MulawAudio.length} pcmBytes=${pcm16k.length} bufferedBefore=${this.audioBuffer.length}`,
+      );
 
-      // Buffer audio to meet minimum chunk size for Gemini
       this.audioBuffer = Buffer.concat([this.audioBuffer, pcm16k]);
 
       if (this.audioBuffer.length >= MIN_AUDIO_CHUNK_BYTES) {
         this.flushAudioBuffer();
       } else if (!this.audioFlushTimer) {
-        // Ensure buffered audio is sent within AUDIO_FLUSH_INTERVAL_MS even if under threshold
-        this.audioFlushTimer = setTimeout(() => this.flushAudioBuffer(), AUDIO_FLUSH_INTERVAL_MS);
+        this.audioFlushTimer = setTimeout(
+          () => this.flushAudioBuffer(),
+          AUDIO_FLUSH_INTERVAL_MS,
+        );
       }
     });
 
     this.twilioStream.on("stop", () => {
-      console.log(`[Orchestrator] Twilio stream stopped for call ${this.session.twilioCallSid}`);
+      console.log(
+        `[Orchestrator] Twilio stream stopped for call ${this.session.twilioCallSid}`,
+      );
       this.cleanup();
     });
 
@@ -104,20 +109,22 @@ export class CallOrchestrator extends EventEmitter {
   private wireUpGemini(): void {
     this.geminiSession.on("connected", () => {
       this.updateStatus("active");
-      console.log(`[Orchestrator] Gemini connected — call is now active`);
+      console.log("[Orchestrator] Gemini connected; call is now active");
 
-      // Flush any buffered audio
       this.flushAudioBuffer();
 
-      // On outbound calls, prompt Gemini to start speaking immediately
       if (this.session.direction === "outbound") {
-        this.geminiSession.sendText("The call has been answered. Start speaking now — introduce yourself and state your purpose.");
+        this.geminiSession.sendText(
+          "The call has been answered. Start speaking now - introduce yourself and state your purpose.",
+        );
       }
     });
 
     this.geminiSession.onAudio((pcm16k: Buffer) => {
-      // Convert Gemini audio (PCM 16kHz) → Twilio (mulaw 8kHz base64)
       const base64Mulaw = geminiToTwilio(pcm16k);
+      console.log(
+        `[Orchestrator] Gemini audio received pcmBytes=${pcm16k.length} twilioBase64Length=${base64Mulaw.length}`,
+      );
       this.twilioStream.sendAudio(base64Mulaw);
     });
 
@@ -128,7 +135,7 @@ export class CallOrchestrator extends EventEmitter {
     this.geminiSession.onToolCall((toolCall) => {
       const calls = toolCall.functionCalls ?? [];
       console.log(
-        `[Orchestrator] Tool call(s) received: ${calls.map((fc) => fc.name).join(", ")}`
+        `[Orchestrator] Tool call(s) received: ${calls.map((fc) => fc.name).join(", ")}`,
       );
 
       for (const fc of calls) {
@@ -145,8 +152,7 @@ export class CallOrchestrator extends EventEmitter {
         })
         .catch((err) => {
           console.error(`[Orchestrator] Tool execution failed: ${err.message}`);
-          // Send error responses back to Gemini so it can acknowledge the error vocally
-          // (e.g., "I'm sorry, I wasn't able to check your calendar right now")
+
           const errorResponses = calls.map((fc) => ({
             id: fc.id,
             name: fc.name ?? "unknown",
@@ -154,23 +160,29 @@ export class CallOrchestrator extends EventEmitter {
               error: `The ${fc.name} service is temporarily unavailable. Please let the user know you couldn't complete this action right now.`,
             },
           }));
+
           try {
             this.geminiSession.sendToolResponse(errorResponses);
           } catch {
-            // If we can't even send the error response, just log and continue
-            console.error(`[Orchestrator] Could not send error tool response to Gemini`);
+            console.error(
+              "[Orchestrator] Could not send error tool response to Gemini",
+            );
           }
+
           this.emit("error", err);
         });
     });
 
     this.geminiSession.onInterrupted(() => {
-      console.log(`[Orchestrator] Gemini interrupted (barge-in) for call ${this.session.twilioCallSid}`);
+      console.log(
+        `[Orchestrator] Gemini interrupted for call ${this.session.twilioCallSid}`,
+      );
     });
 
     this.geminiSession.on("disconnected", () => {
-      console.log(`[Orchestrator] Gemini disconnected for call ${this.session.twilioCallSid}`);
-      // If Gemini disconnects and we can't reconnect, end the call
+      console.log(
+        `[Orchestrator] Gemini disconnected for call ${this.session.twilioCallSid}`,
+      );
       if (this.session.status === "active") {
         this.cleanup();
       }
@@ -187,6 +199,7 @@ export class CallOrchestrator extends EventEmitter {
       clearTimeout(this.audioFlushTimer);
       this.audioFlushTimer = null;
     }
+
     if (this.audioBuffer.length > 0) {
       this.geminiSession.sendAudio(this.audioBuffer);
       this.audioBuffer = Buffer.alloc(0);
@@ -205,12 +218,15 @@ export class CallOrchestrator extends EventEmitter {
     if (this.cleanedUp) return;
     this.cleanedUp = true;
 
-    console.log(`[Orchestrator] Cleaning up call ${this.session.twilioCallSid || this.session.id}`);
+    console.log(
+      `[Orchestrator] Cleaning up call ${this.session.twilioCallSid || this.session.id} status=${this.session.status} bufferedAudio=${this.audioBuffer.length}`,
+    );
 
     if (this.audioFlushTimer) {
       clearTimeout(this.audioFlushTimer);
       this.audioFlushTimer = null;
     }
+
     this.geminiSession.close();
     this.twilioStream.close();
 

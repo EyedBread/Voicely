@@ -20,29 +20,46 @@ export class TwilioMediaStream extends EventEmitter {
   private ws: WebSocket;
   private streamSid: string | null = null;
   private callSid: string | null = null;
+  private inboundMessageCount = 0;
+  private outboundMessageCount = 0;
 
   constructor(ws: WebSocket) {
     super();
     this.ws = ws;
+    this.disableCompression();
     this.setupListeners();
+  }
+
+  private disableCompression(): void {
+    const socket = this.ws as WebSocket & {
+      _extensions?: Record<string, unknown>;
+      _sender?: { _extensions?: Record<string, unknown> };
+    };
+
+    socket._extensions = {};
+
+    if (socket._sender) {
+      socket._sender._extensions = {};
+    }
   }
 
   private setupListeners(): void {
     this.ws.on("message", (data: WebSocket.RawData) => {
       try {
+        this.inboundMessageCount++;
+        console.log(
+          `[Twilio] <- raw message #${this.inboundMessageCount} bytes=${data.toString().length} readyState=${this.ws.readyState}`,
+        );
         const message: TwilioStreamMessage = JSON.parse(data.toString());
         this.handleMessage(message);
       } catch (err) {
-        this.emit(
-          "error",
-          new Error(`Failed to parse Twilio message: ${err}`)
-        );
+        this.emit("error", new Error(`Failed to parse Twilio message: ${err}`));
       }
     });
 
-    this.ws.on("close", () => {
+    this.ws.on("close", (code: number, reason: Buffer) => {
       console.log(
-        `[Twilio] WebSocket closed for call ${this.callSid ?? "unknown"}`
+        `[Twilio] WebSocket closed for call ${this.callSid ?? "unknown"} code=${code} reason=${reason.toString() || "none"} inboundMessages=${this.inboundMessageCount} outboundMessages=${this.outboundMessageCount}`,
       );
       if (this.callSid) {
         this.emit("stop", this.callSid);
@@ -53,21 +70,32 @@ export class TwilioMediaStream extends EventEmitter {
       console.error(`[Twilio] WebSocket error: ${err.message}`);
       this.emit("error", err);
     });
+
+    this.ws.on("ping", (data: Buffer) => {
+      console.log(`[Twilio] <- ping bytes=${data.length}`);
+    });
+
+    this.ws.on("pong", (data: Buffer) => {
+      console.log(`[Twilio] <- pong bytes=${data.length}`);
+    });
   }
 
   private handleMessage(message: TwilioStreamMessage): void {
     switch (message.event) {
       case "connected":
         console.log(
-          `[Twilio] Media stream connected (protocol: ${message.protocol})`
+          `[Twilio] Media stream connected protocol=${message.protocol} version=${message.version} extensions=${(this.ws as WebSocket & { extensions?: string }).extensions ?? "none"}`,
         );
         break;
 
       case "start":
         this.streamSid = message.start.streamSid;
         this.callSid = message.start.callSid;
+        const tracks = Array.isArray(message.start.tracks)
+          ? message.start.tracks.join(",")
+          : "unknown";
         console.log(
-          `[Twilio] Stream started — streamSid: ${this.streamSid}, callSid: ${this.callSid}`
+          `[Twilio] Stream started streamSid=${this.streamSid} callSid=${this.callSid} tracks=${tracks} mediaFormat=${JSON.stringify(message.start.mediaFormat)} customParameters=${JSON.stringify(message.start.customParameters ?? {})}`,
         );
         this.emit("start", {
           streamSid: this.streamSid,
@@ -77,26 +105,30 @@ export class TwilioMediaStream extends EventEmitter {
         break;
 
       case "media":
+        console.log(
+          `[Twilio] <- media chunk=${message.media.chunk} timestamp=${message.media.timestamp} payloadLength=${message.media.payload.length}`,
+        );
         this.emit("audio", message.media.payload);
         break;
 
       case "stop":
-        console.log(`[Twilio] Stream stopped for call ${message.stop.callSid}`);
+        console.log(
+          `[Twilio] Stream stopped for call ${message.stop.callSid} streamSid=${message.streamSid}`,
+        );
         this.emit("stop", message.stop.callSid);
         break;
 
       case "mark":
-        // Marks are used for synchronization; no action needed for now
+        console.log(`[Twilio] <- mark ${message.mark.name}`);
         break;
     }
   }
 
-  /**
-   * Send audio back to the caller via Twilio's media stream.
-   * @param base64MulawAudio - Base64-encoded mulaw audio payload
-   */
   sendAudio(base64MulawAudio: string): void {
     if (this.ws.readyState !== this.ws.OPEN || !this.streamSid) {
+      console.warn(
+        `[Twilio] Skipping audio send readyState=${this.ws.readyState} streamSid=${this.streamSid ?? "none"}`,
+      );
       return;
     }
 
@@ -108,15 +140,27 @@ export class TwilioMediaStream extends EventEmitter {
       },
     });
 
-    this.ws.send(message);
+    this.outboundMessageCount++;
+    const messageNumber = this.outboundMessageCount;
+    console.log(
+      `[Twilio] -> media #${messageNumber} streamSid=${this.streamSid} payloadLength=${base64MulawAudio.length} compress=false extensions=${(this.ws as WebSocket & { extensions?: string }).extensions ?? "none"}`,
+    );
+    this.ws.send(message, { compress: false }, (err?: Error) => {
+      if (err) {
+        console.error(
+          `[Twilio] Failed to send media #${messageNumber}: ${err.message}`,
+        );
+      } else {
+        console.log(`[Twilio] -> media #${messageNumber} sent`);
+      }
+    });
   }
 
-  /**
-   * Send a mark message for synchronization.
-   * @param name - A label for the mark
-   */
   sendMark(name: string): void {
     if (this.ws.readyState !== this.ws.OPEN || !this.streamSid) {
+      console.warn(
+        `[Twilio] Skipping mark send readyState=${this.ws.readyState} streamSid=${this.streamSid ?? "none"}`,
+      );
       return;
     }
 
@@ -126,20 +170,30 @@ export class TwilioMediaStream extends EventEmitter {
       mark: { name },
     });
 
-    this.ws.send(message);
+    this.outboundMessageCount++;
+    const messageNumber = this.outboundMessageCount;
+    console.log(
+      `[Twilio] -> mark #${messageNumber} streamSid=${this.streamSid} name=${name} compress=false`,
+    );
+    this.ws.send(message, { compress: false }, (err?: Error) => {
+      if (err) {
+        console.error(
+          `[Twilio] Failed to send mark #${messageNumber}: ${err.message}`,
+        );
+      } else {
+        console.log(`[Twilio] -> mark #${messageNumber} sent`);
+      }
+    });
   }
 
-  /** The Twilio stream SID for this connection. */
   getStreamSid(): string | null {
     return this.streamSid;
   }
 
-  /** The Twilio call SID for this connection. */
   getCallSid(): string | null {
     return this.callSid;
   }
 
-  /** Close the WebSocket connection. */
   close(): void {
     if (this.ws.readyState === this.ws.OPEN) {
       this.ws.close();

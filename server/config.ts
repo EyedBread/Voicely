@@ -10,11 +10,22 @@ export interface ServerConfig {
   };
   gemini: {
     apiKey: string;
+    liveModel: string;
   };
   googleCalendar: {
     serviceAccountEmail: string;
     privateKey: string;
     calendarId: string;
+  };
+  googleOAuth: {
+    clientId: string;
+    clientSecret: string;
+  };
+  googleWorkspace: {
+    clientId: string;
+    clientSecret: string;
+    redirectUri: string;
+    tokenStorePath: string;
   };
   recall: {
     apiKey: string;
@@ -39,6 +50,7 @@ export interface ServiceStatus {
   twilio: boolean;
   gemini: boolean;
   googleCalendar: boolean;
+  googleWorkspaceOAuth?: boolean;
   recall: boolean;
 }
 
@@ -51,7 +63,7 @@ function isPlaceholder(value: string): boolean {
   return (
     !value ||
     value.startsWith("your_") ||
-    value === "+1234567890" ||
+    value === "+46737869515" ||
     value.startsWith("https://your-")
   );
 }
@@ -64,6 +76,7 @@ const serverHost = getEnv(
 const bridgeServerHost =
   serverHost === "0.0.0.0" || serverHost === "::" ? "127.0.0.1" : serverHost;
 const defaultBridgeServerUrl = `http://${bridgeServerHost}:${serverPort}`;
+const defaultWorkspaceRedirectUri = `http://${bridgeServerHost}:${serverPort}/auth/google/workspace/callback`;
 
 export const config: ServerConfig = {
   twilio: {
@@ -73,17 +86,28 @@ export const config: ServerConfig = {
   },
   gemini: {
     apiKey: getEnv("GEMINI_API_KEY"),
+    liveModel: getEnv("GEMINI_LIVE_MODEL", "gemini-3.1-flash-live-preview"),
   },
   googleCalendar: {
     serviceAccountEmail: getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
     privateKey: getEnv("GOOGLE_PRIVATE_KEY"),
     calendarId: getEnv("GOOGLE_CALENDAR_ID", "primary"),
   },
+  googleOAuth: {
+    clientId: getEnv("GOOGLE_CLIENT_ID"),
+    clientSecret: getEnv("GOOGLE_CLIENT_SECRET"),
+  },
+  googleWorkspace: {
+    clientId: getEnv("GOOGLE_WORKSPACE_CLIENT_ID", getEnv("GOOGLE_CLIENT_ID")),
+    clientSecret: getEnv("GOOGLE_WORKSPACE_CLIENT_SECRET", getEnv("GOOGLE_CLIENT_SECRET")),
+    redirectUri: getEnv("GOOGLE_OAUTH_REDIRECT_URI", defaultWorkspaceRedirectUri),
+    tokenStorePath: getEnv("GOOGLE_WORKSPACE_TOKEN_STORE_PATH", ".data/google-workspace-tokens.json"),
+  },
   recall: {
     apiKey: getEnv("RECALL_API_KEY"),
     apiBaseUrl: getEnv(
       "RECALL_API_BASE_URL",
-      "https://us-west-2.recall.ai/api/v1"
+      "https://eu-central-1.recall.ai/api/v1"
     ),
   },
   mainAgent: {
@@ -99,7 +123,7 @@ export const config: ServerConfig = {
   },
   nextPublicBridgeServerUrl: getEnv(
     "NEXT_PUBLIC_BRIDGE_SERVER_URL",
-    "http://localhost:8080"
+    "http://localhost:8080",
   ),
   bridgeServerUrl: getEnv("BRIDGE_SERVER_URL", defaultBridgeServerUrl),
 };
@@ -114,6 +138,10 @@ export function isConfigured(): ServiceStatus {
     googleCalendar:
       !isPlaceholder(config.googleCalendar.serviceAccountEmail) &&
       !isPlaceholder(config.googleCalendar.privateKey),
+    googleWorkspaceOAuth:
+      !isPlaceholder(config.googleWorkspace.clientId) &&
+      !isPlaceholder(config.googleWorkspace.clientSecret) &&
+      !isPlaceholder(config.googleWorkspace.redirectUri),
     recall: !isPlaceholder(config.recall.apiKey),
   };
 }
@@ -124,7 +152,7 @@ export function validateConfig(): void {
 
   if (!status.twilio) {
     missing.push(
-      "Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)"
+      "Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)",
     );
   }
   if (!status.gemini) {
@@ -132,7 +160,7 @@ export function validateConfig(): void {
   }
   if (!status.googleCalendar) {
     missing.push(
-      "Google Calendar (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY)"
+      "Google Calendar (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY)",
     );
   }
   if (!status.recall) {
@@ -141,7 +169,7 @@ export function validateConfig(): void {
 
   if (missing.length > 0) {
     console.warn(
-      `⚠ Missing or placeholder configuration for: ${missing.join(", ")}`
+      `⚠ Missing or placeholder configuration for: ${missing.join(", ")}`,
     );
     console.warn("  The bridge server will start, but calls will not work.");
     console.warn("  Copy .env.example to .env and fill in your API keys.");
@@ -149,7 +177,7 @@ export function validateConfig(): void {
 
   if (isPlaceholder(config.server.publicUrl)) {
     console.warn(
-      "⚠ PUBLIC_SERVER_URL is not set. Twilio webhooks will not work until this is configured (e.g., via ngrok)."
+      "⚠ PUBLIC_SERVER_URL is not set. Twilio webhooks will not work until this is configured (e.g., via ngrok).",
     );
   }
 }

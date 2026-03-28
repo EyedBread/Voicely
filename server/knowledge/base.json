@@ -1,14 +1,14 @@
 {
   "company": {
-    "name": "Voisli Demo Co.",
+    "name": "Yapper Demo Co.",
     "industry": "AI-powered voice solutions",
     "description": "We provide AI voice assistant technology for businesses to automate phone calls, meetings, and scheduling.",
     "founded": "2024",
-    "website": "https://voisli.com"
+    "website": "https://yapper.com"
   },
   "products": [
     {
-      "name": "Voisli Voice Agent",
+      "name": "Yapper Voice Agent",
       "description": "AI-powered inbound call handler that answers customer calls, takes messages, and routes inquiries.",
       "price": "$49/month",
       "category": "core",
@@ -16,7 +16,7 @@
       "features": ["24/7 availability", "Natural conversation", "Call routing", "Message taking", "Calendar integration"]
     },
     {
-      "name": "Voisli Outbound Caller",
+      "name": "Yapper Outbound Caller",
       "description": "Automated outbound calling for reservations, appointments, and follow-ups.",
       "price": "$79/month",
       "category": "core",
@@ -24,7 +24,7 @@
       "features": ["Restaurant reservations", "Appointment booking", "Follow-up calls", "Confirmation calls"]
     },
     {
-      "name": "Voisli Meeting Bot",
+      "name": "Yapper Meeting Bot",
       "description": "AI meeting assistant that joins video calls, transcribes conversations, and generates summaries.",
       "price": "$39/month",
       "category": "meetings",
@@ -32,7 +32,7 @@
       "features": ["Live transcription", "Meeting summaries", "Action item extraction", "Zoom/Meet/Teams support"]
     },
     {
-      "name": "Voisli Enterprise Suite",
+      "name": "Yapper Enterprise Suite",
       "description": "Full platform access with custom integrations, dedicated support, and unlimited usage.",
       "price": "$199/month",
       "category": "enterprise",
@@ -43,7 +43,7 @@
   "faq": [
     {
       "question": "What is our most selling product?",
-      "answer": "Our best-selling product is the Voisli Voice Agent at $49/month. It's our core inbound call handling solution."
+      "answer": "Our best-selling product is the Yapper Voice Agent at $49/month. It's our core inbound call handling solution."
     },
     {
       "question": "What hours are we available?",
@@ -68,12 +68,12 @@
   ],
   "policies": {
     "refund": "Full refund within 30 days of purchase, no questions asked.",
-    "support": "Email support at support@voisli.com. Enterprise customers get dedicated Slack channel.",
+    "support": "Email support at support@yapper.com. Enterprise customers get dedicated Slack channel.",
     "uptime": "We guarantee 99.9% uptime for all paid plans."
   },
   "team": {
-    "supportEmail": "support@voisli.com",
-    "salesEmail": "sales@voisli.com",
+    "supportEmail": "support@yapper.com",
+    "salesEmail": "sales@yapper.com",
     "phone": "+1-555-VOISLI"
   }
 }

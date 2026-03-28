@@ -129,6 +129,9 @@ export interface GeminiConfig {
   systemInstruction: string;
   voice: string;
   tools?: GeminiToolConfig[];
+  responseModalities?: string[];
+  inputAudioTranscription?: boolean;
+  outputAudioTranscription?: boolean;
 }
 
 export interface GeminiToolConfig {

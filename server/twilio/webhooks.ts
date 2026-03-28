@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, type Request, type Response } from "express";
 import twilio from "twilio";
 import { config } from "../config";
 import { recordCallStatus, type CallStatusEvent } from "./outbound";
@@ -14,39 +14,50 @@ function getWsUrl(path: string): string {
     : `wss://${config.server.host}:${config.server.port}${path}`;
 }
 
-/**
- * POST /twiml/:sessionId
- * Returns TwiML XML that opens a bidirectional WebSocket media stream for the session.
- */
-router.post("/twiml/:sessionId", (req: Request, res: Response) => {
+function sendSessionTwiml(req: Request, res: Response): void {
   try {
-    const response = new VoiceResponse();
     const sessionId = Array.isArray(req.params.sessionId) ? req.params.sessionId[0] : req.params.sessionId;
+    if (!sessionId) {
+      res.status(400).type("text/xml").send("<Response><Say>Missing session.</Say></Response>");
+      return;
+    }
 
+    console.log(
+      `[TwiML] Building session TwiML session=${sessionId} websocket url=${getWsUrl(`/media-stream/${encodeURIComponent(sessionId)}`)}`,
+    );
+
+    const response = new VoiceResponse();
     response.say("Connecting you now.");
-
     const connect = response.connect();
     connect.stream({ url: getWsUrl(`/media-stream/${encodeURIComponent(sessionId)}`) });
 
     res.type("text/xml");
     res.send(response.toString());
   } catch (err) {
-    console.error(`[TwiML] Error generating inbound TwiML: ${err instanceof Error ? err.message : err}`);
-    // Return a fallback TwiML that tells the caller about the error
+    console.error(
+      `[TwiML] Error generating inbound TwiML: ${err instanceof Error ? err.message : err}`,
+    );
     const fallback = new VoiceResponse();
-    fallback.say("I'm sorry, we're experiencing technical difficulties. Please try again later.");
+    fallback.say(
+      "I'm sorry, we're experiencing technical difficulties. Please try again later.",
+    );
     res.type("text/xml");
     res.send(fallback.toString());
   }
-});
+}
 
-/**
- * POST /call-status/:sessionId
- * Twilio sends status callbacks here for outbound calls and hangups.
- */
-router.post("/call-status/:sessionId", async (req: Request, res: Response) => {
+async function handleCallStatus(req: Request, res: Response): Promise<void> {
   try {
     const sessionId = Array.isArray(req.params.sessionId) ? req.params.sessionId[0] : req.params.sessionId;
+    if (!sessionId) {
+      res.sendStatus(204);
+      return;
+    }
+
+    console.log(
+      `[Twilio] Call status callback session=${sessionId} sid=${req.body.CallSid ?? "unknown"} status=${req.body.CallStatus ?? "unknown"} direction=${req.body.Direction ?? "unknown"}`,
+    );
+
     const event: CallStatusEvent = {
       callSid: req.body.CallSid ?? "",
       callStatus: req.body.CallStatus ?? "",
@@ -65,9 +76,14 @@ router.post("/call-status/:sessionId", async (req: Request, res: Response) => {
     }
     res.sendStatus(204);
   } catch (err) {
-    console.error(`[TwiML] Error processing call status: ${err instanceof Error ? err.message : err}`);
-    res.sendStatus(204); // Still acknowledge to Twilio to prevent retries
+    console.error(
+      `[TwiML] Error processing call status: ${err instanceof Error ? err.message : err}`,
+    );
+    res.sendStatus(204);
   }
-});
+}
+
+router.route("/twiml/:sessionId").get(sendSessionTwiml).post(sendSessionTwiml);
+router.route("/call-status/:sessionId").get(handleCallStatus).post(handleCallStatus);
 
 export default router;

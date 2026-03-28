@@ -49,7 +49,7 @@ const SPEAKER_COLORS = [
 const BOT_COLOR = { bg: "bg-success/10", text: "text-success", dot: "bg-success" };
 
 function getSpeakerColor(speaker: string, speakerMap: Map<string, number>) {
-  if (speaker.toLowerCase().includes("voisli") || speaker.toLowerCase().includes("bot")) {
+  if (speaker.toLowerCase().includes("yapper") || speaker.toLowerCase().includes("bot")) {
     return BOT_COLOR;
   }
   if (!speakerMap.has(speaker)) {
@@ -128,7 +128,7 @@ export default function MeetingDetailPage() {
 
       if (event.type === "bot_spoke" && event.data.botId === botId) {
         const botEntry: TranscriptEntry = {
-          speaker: "Voisli Bot",
+          speaker: "Yapper Bot",
           text: (event.data.answer as string) ?? "",
           timestamp: event.timestamp,
           isBotSpeech: true,

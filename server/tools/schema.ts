@@ -125,7 +125,7 @@ export const endCall: GeminiToolConfig = {
 export const joinMeeting: GeminiToolConfig = {
   name: "join_meeting",
   description:
-    "Send the Voisli AI assistant to join a Google Meet meeting",
+    "Send the Yapper AI assistant to join a Google Meet meeting",
   parameters: {
     type: "object",
     properties: {
@@ -137,7 +137,7 @@ export const joinMeeting: GeminiToolConfig = {
       bot_name: {
         type: "string",
         description:
-          "Optional custom name for the meeting bot (defaults to 'Voisli Assistant')",
+          "Optional custom name for the meeting bot (defaults to 'Yapper Assistant')",
       },
     },
     required: ["meeting_url"],

@@ -166,6 +166,6 @@ registerToolHandler("join_meeting", async (args) => {
     bot_id: session.botId,
     meeting_url: session.meetingUrl,
     status: session.status,
-    message: `Voisli assistant is joining the meeting at ${session.meetingUrl}`,
+    message: `Yapper assistant is joining the meeting at ${session.meetingUrl}`,
   };
 });

@@ -56,7 +56,7 @@ const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
 export default function Home() {
-  const { isAuthenticated, setupCompleted, loading: authLoading, login, completeSetup } = useAuth();
+  const { user, isAuthenticated, setupCompleted, loading: authLoading, login, completeSetup } = useAuth();
   const [status, setStatus] = useState<BridgeStatus | null>(null);
   const [online, setOnline] = useState(false);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -243,7 +243,7 @@ export default function Home() {
   const activeCalls = status?.activeCalls ?? 0;
 
   if (authLoading) {
-    return <div className="flex min-h-[calc(100vh-73px)] items-center justify-center" />;
+    return <div className="flex min-h-[calc(100dvh-65px)] items-center justify-center" />;
   }
 
   if (!isAuthenticated) {
@@ -251,7 +251,7 @@ export default function Home() {
   }
 
   if (!setupCompleted) {
-    return <SetupWizard onComplete={completeSetup} />;
+    return <SetupWizard userId={user!.id} onComplete={completeSetup} />;
   }
 
   return (
@@ -259,7 +259,7 @@ export default function Home() {
       {/* Hero */}
       <section className="mb-10 animate-fade-in">
         <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Voisli
+          Yapper
         </h1>
         <p className="mt-2 text-lg text-muted">Your AI Voice Assistant</p>
         <div className="mt-2 flex items-center gap-2">

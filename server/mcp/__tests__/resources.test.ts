@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerResources } from "../resources.js";
+import type { BridgeAPIFn } from "../bridge.js";
 
-// Mock the bridge module
-vi.mock("../bridge.js", () => ({
-  callBridgeAPI: vi.fn(),
-}));
-
-import { callBridgeAPI } from "../bridge.js";
-const mockCallBridgeAPI = vi.mocked(callBridgeAPI);
+const mockCallBridgeAPI = vi.fn() as unknown as BridgeAPIFn & ReturnType<typeof vi.fn>;
 
 // Capture resources registered by registerResources
 type RegisteredEntry = {
@@ -33,7 +28,7 @@ function captureResources(): RegisteredEntry[] {
     ),
   } as unknown as McpServer;
 
-  registerResources(server);
+  registerResources(server, mockCallBridgeAPI);
   return entries;
 }
 

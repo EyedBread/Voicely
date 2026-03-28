@@ -8,8 +8,10 @@ import { config, isConfigured } from "./config.js";
 import { sseHandler } from "./events.js";
 import { runHealthCheck } from "./health.js";
 import authRoutes from "./auth.js";
+import googleOAuthRoutes from "./googleOAuth.js";
 import { clearKnowledgeCache, loadKnowledgeBase, saveKnowledgeBase, type KnowledgeBase } from "./knowledge/index.js";
 import { registerMcpHttpRoutes } from "./mcp/http.js";
+import { outputMediaHub } from "./meeting/outputMediaHub.js";
 import recallWebhooks from "./meeting/webhooks.js";
 import twilioWebhooks from "./twilio/webhooks.js";
 import { initiateOutboundCall } from "./twilio/outbound.js";
@@ -91,11 +93,16 @@ export function createApp() {
   });
 
   app.use(authRoutes);
+  app.use(googleOAuthRoutes);
   app.use(twilioWebhooks);
   app.use(recallWebhooks);
   registerMcpHttpRoutes(app);
 
   app.get("/events", sseHandler);
+
+  app.get("/output-media/:botId", (req, res) => {
+    res.type("html").send(outputMediaHub.renderPage(req.params.botId));
+  });
 
   app.get("/status", (_req, res) => {
     const sessions = voiceCoordinator.getAllSessions();
@@ -323,25 +330,44 @@ export function createApp() {
 }
 
 export function attachVoiceWebSocketServer(server: HttpServer): void {
-  const wss = new WebSocketServer({ noServer: true });
+  const voiceMediaWss = new WebSocketServer({ noServer: true });
+  const outputMediaWss = new WebSocketServer({ noServer: true });
 
   server.on("upgrade", (request, socket, head) => {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-    const match = url.pathname.match(/^\/media-stream\/([^/]+)$/);
-    if (!match) {
-      socket.destroy();
+    const voiceMatch = url.pathname.match(/^\/media-stream\/([^/]+)$/);
+    if (voiceMatch) {
+      const sessionId = decodeURIComponent(voiceMatch[1]);
+      voiceMediaWss.handleUpgrade(request, socket, head, (ws) => {
+        voiceMediaWss.emit("connection", ws, request, sessionId);
+      });
       return;
     }
 
-    const sessionId = decodeURIComponent(match[1]);
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit("connection", ws, request, sessionId);
-    });
+    if (url.pathname === "/output-media/ws") {
+      const requestedBotId = url.searchParams.get("botId");
+      const botId = requestedBotId ? outputMediaHub.resolveBotId(requestedBotId) : null;
+      if (!botId) {
+        socket.destroy();
+        return;
+      }
+
+      outputMediaWss.handleUpgrade(request, socket, head, (ws) => {
+        outputMediaWss.emit("connection", ws, request, botId);
+      });
+      return;
+    }
+
+    socket.destroy();
   });
 
-  wss.on("connection", (ws: WebSocket, _request: IncomingMessage, sessionId: string) => {
+  voiceMediaWss.on("connection", (ws: WebSocket, _request: IncomingMessage, sessionId: string) => {
     const mediaStream = new TwilioMediaStream(ws);
     voiceCoordinator.attachTwilioTransport(sessionId, mediaStream);
+  });
+
+  outputMediaWss.on("connection", (ws: WebSocket, _request: IncomingMessage, botId: string) => {
+    outputMediaHub.addClient(botId, ws);
   });
 }
 

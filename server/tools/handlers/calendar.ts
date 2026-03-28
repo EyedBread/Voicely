@@ -1,11 +1,24 @@
 import { google, calendar_v3 } from "googleapis";
 import { config } from "../../config.js";
+import { getUserCalendarAuth } from "../../googleOAuth.js";
 
 // ---------------------------------------------------------------------------
-// Google Calendar API client (Service Account auth)
+// Google Calendar API client
+// Supports two auth modes:
+//   1. Per-user OAuth tokens (preferred — from "Connect Calendar" flow)
+//   2. Service Account fallback (legacy — from env vars)
 // ---------------------------------------------------------------------------
 
-function getCalendarClient(): calendar_v3.Calendar {
+function getCalendarClient(userId?: number): calendar_v3.Calendar {
+  // Try per-user OAuth first
+  if (userId) {
+    const oauth2Client = getUserCalendarAuth(userId);
+    if (oauth2Client) {
+      return google.calendar({ version: "v3", auth: oauth2Client });
+    }
+  }
+
+  // Fall back to service account
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: config.googleCalendar.serviceAccountEmail,
@@ -30,9 +43,10 @@ function calendarId(): string {
 export async function checkAvailability(
   date: string,
   timeStart: string,
-  timeEnd: string
+  timeEnd: string,
+  userId?: number
 ): Promise<Record<string, unknown>> {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(userId);
 
   const timeMin = new Date(`${date}T${timeStart}`).toISOString();
   const timeMax = new Date(`${date}T${timeEnd}`).toISOString();
@@ -73,9 +87,10 @@ export async function createEvent(
   timeStart: string,
   timeEnd: string,
   description?: string,
-  location?: string
+  location?: string,
+  userId?: number
 ): Promise<Record<string, unknown>> {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(userId);
 
   const event: calendar_v3.Schema$Event = {
     summary: title,
@@ -111,9 +126,10 @@ export async function createEvent(
 // ---------------------------------------------------------------------------
 
 export async function listUpcomingEvents(
-  count: number = 5
+  count: number = 5,
+  userId?: number
 ): Promise<Record<string, unknown>> {
-  const calendar = getCalendarClient();
+  const calendar = getCalendarClient(userId);
 
   const res = await calendar.events.list({
     calendarId: calendarId(),

@@ -17,14 +17,14 @@ export default function SignupPage() {
             Create Account
           </h1>
           <p className="mt-1 text-sm text-muted">
-            Sign up to get started with Voisli
+            Sign up to get started with Yapper
           </p>
 
           <div className="mt-6">
             <SignupForm
               onSuccess={(user) => {
                 login(user);
-                router.push("/");
+                router.push("/app");
               }}
             />
           </div>

@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { callBridgeAPI } from "./bridge.js";
 import { registerResources } from "./resources.js";
 import { registerTools } from "./tools.js";
 
@@ -12,8 +13,8 @@ export function createVoisliMcpServer(): McpServer {
     version: pkg.version,
   });
 
-  registerTools(server);
-  registerResources(server);
+  registerTools(server, callBridgeAPI);
+  registerResources(server, callBridgeAPI);
 
   return server;
 }
