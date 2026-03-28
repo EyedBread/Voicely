@@ -22,7 +22,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-73px)] flex-col items-center justify-center px-4 py-10">
+    <div className="flex min-h-[calc(100dvh-65px)] flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl">
         {/* Step content */}
         <div key={step} className="animate-step-enter">

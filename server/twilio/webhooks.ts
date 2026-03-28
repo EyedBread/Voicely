@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, type Request, type Response } from "express";
 import twilio from "twilio";
 import { config } from "../config";
 import { recordCallStatus, type CallStatusEvent } from "./outbound";
@@ -13,47 +13,43 @@ function getWsUrl(path: string): string {
     : `wss://${config.server.host}:${config.server.port}${path}`;
 }
 
-/**
- * POST /twiml
- * Returns TwiML XML that greets the caller and opens a bidirectional
- * WebSocket media stream to the bridge server (inbound calls).
- */
-router.post("/twiml", (_req: Request, res: Response) => {
+function sendInboundTwiml(_req: Request, res: Response): void {
   try {
-    const response = new VoiceResponse();
+    console.log(
+      `[TwiML] Building inbound TwiML with websocket url=${getWsUrl("/media-stream")}`,
+    );
 
-    // Greet the caller before connecting to the AI stream
+    const response = new VoiceResponse();
     response.say("Connecting you to Yapper");
 
-    // Open a bidirectional media stream to the bridge server
     const connect = response.connect();
     connect.stream({ url: getWsUrl("/media-stream") });
 
     res.type("text/xml");
     res.send(response.toString());
   } catch (err) {
-    console.error(`[TwiML] Error generating inbound TwiML: ${err instanceof Error ? err.message : err}`);
-    // Return a fallback TwiML that tells the caller about the error
+    console.error(
+      `[TwiML] Error generating inbound TwiML: ${err instanceof Error ? err.message : err}`,
+    );
     const fallback = new VoiceResponse();
-    fallback.say("I'm sorry, we're experiencing technical difficulties. Please try again later.");
+    fallback.say(
+      "I'm sorry, we're experiencing technical difficulties. Please try again later.",
+    );
     res.type("text/xml");
     res.send(fallback.toString());
   }
-});
+}
 
-/**
- * POST /twiml/outbound
- * Returns TwiML for outbound calls. The `purpose` query parameter is passed
- * through as a custom parameter on the media stream so the orchestrator can
- * pick the right system prompt.
- */
-router.post("/twiml/outbound", (req: Request, res: Response) => {
+router.route("/twiml").get(sendInboundTwiml).post(sendInboundTwiml);
+
+function sendOutboundTwiml(req: Request, res: Response): void {
   try {
     const purpose = (req.query.purpose as string) ?? "";
+    console.log(
+      `[TwiML] Building outbound TwiML purpose=${JSON.stringify(purpose)} websocket url=${getWsUrl("/media-stream-outbound")}`,
+    );
 
     const response = new VoiceResponse();
-
-    // Open a bidirectional media stream with custom parameters
     const connect = response.connect();
     const stream = connect.stream({ url: getWsUrl("/media-stream-outbound") });
     stream.parameter({ name: "purpose", value: purpose });
@@ -62,20 +58,29 @@ router.post("/twiml/outbound", (req: Request, res: Response) => {
     res.type("text/xml");
     res.send(response.toString());
   } catch (err) {
-    console.error(`[TwiML] Error generating outbound TwiML: ${err instanceof Error ? err.message : err}`);
+    console.error(
+      `[TwiML] Error generating outbound TwiML: ${err instanceof Error ? err.message : err}`,
+    );
     const fallback = new VoiceResponse();
-    fallback.say("I'm sorry, we're experiencing technical difficulties with this call.");
+    fallback.say(
+      "I'm sorry, we're experiencing technical difficulties with this call.",
+    );
     res.type("text/xml");
     res.send(fallback.toString());
   }
-});
+}
 
-/**
- * POST /call-status
- * Twilio sends status callbacks here for outbound calls.
- */
-router.post("/call-status", (req: Request, res: Response) => {
+router
+  .route("/twiml/outbound")
+  .get(sendOutboundTwiml)
+  .post(sendOutboundTwiml);
+
+function handleCallStatus(req: Request, res: Response): void {
   try {
+    console.log(
+      `[Twilio] Call status callback sid=${req.body.CallSid ?? "unknown"} status=${req.body.CallStatus ?? "unknown"} direction=${req.body.Direction ?? "unknown"}`,
+    );
+
     const event: CallStatusEvent = {
       callSid: req.body.CallSid ?? "",
       callStatus: req.body.CallStatus ?? "",
@@ -88,9 +93,13 @@ router.post("/call-status", (req: Request, res: Response) => {
     recordCallStatus(event);
     res.sendStatus(204);
   } catch (err) {
-    console.error(`[TwiML] Error processing call status: ${err instanceof Error ? err.message : err}`);
-    res.sendStatus(204); // Still acknowledge to Twilio to prevent retries
+    console.error(
+      `[TwiML] Error processing call status: ${err instanceof Error ? err.message : err}`,
+    );
+    res.sendStatus(204);
   }
-});
+}
+
+router.route("/call-status").get(handleCallStatus).post(handleCallStatus);
 
 export default router;

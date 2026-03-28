@@ -18,7 +18,7 @@ export default function AppLayout({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, setupCompleted, logout } = useAuth();
 
   return (
     <>
@@ -43,56 +43,39 @@ export default function AppLayout({
               Yapper
             </span>
           </Link>
-          <div className="flex items-center gap-6">
-            {NAV_LINKS.map(({ href, label }) => {
-              const isActive =
-                href === "/app" ? pathname === "/app" : pathname.startsWith(href);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className={`text-sm font-medium transition-colors ${
-                    isActive
-                      ? "text-foreground"
-                      : "text-muted hover:text-foreground"
-                  }`}
+          {isAuthenticated && setupCompleted && (
+            <div className="hidden sm:flex items-center gap-6">
+              {NAV_LINKS.map(({ href, label }) => {
+                const isActive =
+                  href === "/app" ? pathname === "/app" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`text-sm font-medium transition-colors ${
+                      isActive
+                        ? "text-foreground"
+                        : "text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+              <div className="ml-2 flex items-center gap-2 border-l border-card-border/50 pl-4">
+                <span className="text-sm text-muted hidden md:inline">{user?.email}</span>
+                <button
+                  onClick={() => {
+                    logout();
+                    router.push("/");
+                  }}
+                  className="text-sm font-medium text-muted hover:text-foreground transition-colors"
                 >
-                  {label}
-                </Link>
-              );
-            })}
-            <div className="ml-2 flex items-center gap-2 border-l border-card-border/50 pl-4">
-              {isAuthenticated ? (
-                <>
-                  <span className="text-sm text-muted">{user?.email}</span>
-                  <button
-                    onClick={() => {
-                      logout();
-                      router.push("/");
-                    }}
-                    className="text-sm font-medium text-muted hover:text-foreground transition-colors"
-                  >
-                    Log out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/login"
-                    className="text-sm font-medium text-muted hover:text-foreground transition-colors"
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    href="/signup"
-                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95"
-                  >
-                    Sign up
-                  </Link>
-                </>
-              )}
+                  Log out
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </nav>
       <main className="flex-1">{children}</main>

@@ -243,7 +243,7 @@ export default function Home() {
   const activeCalls = status?.activeCalls ?? 0;
 
   if (authLoading) {
-    return <div className="flex min-h-[calc(100vh-73px)] items-center justify-center" />;
+    return <div className="flex min-h-[calc(100dvh-65px)] items-center justify-center" />;
   }
 
   if (!isAuthenticated) {
