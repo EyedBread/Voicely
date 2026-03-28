@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { config, validateConfig, isConfigured } from "./config";
@@ -9,6 +9,7 @@ import { initiateOutboundCall } from "./twilio/outbound";
 import { meetingOrchestrator } from "./meeting/meetingOrchestrator";
 import type { BridgeServerStatus } from "../shared/types";
 import { sseHandler } from "./events";
+import { runHealthCheck } from "./health";
 
 const startTime = Date.now();
 
@@ -54,6 +55,23 @@ app.get("/status", (_req, res) => {
     },
   };
   res.json(status);
+});
+
+// Health check endpoint — tests connectivity to all external services
+app.get("/health", async (_req, res) => {
+  try {
+    const health = await runHealthCheck();
+    const httpStatus = health.status === "healthy" ? 200 : health.status === "degraded" ? 200 : 503;
+    res.status(httpStatus).json(health);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[Bridge] Health check failed: ${message}`);
+    res.status(500).json({
+      status: "down",
+      error: "Health check failed unexpectedly",
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 // Call management endpoints
@@ -162,6 +180,17 @@ app.get("/meetings/:botId/transcript", (req, res) => {
   }
   const transcript = meetingOrchestrator.getTranscript(req.params.botId);
   res.json({ botId: req.params.botId, transcript });
+});
+
+// Global error handler middleware — catches unhandled errors in route handlers
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(`[Bridge] Unhandled error: ${err.message}`, err.stack);
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: "An internal server error occurred",
+      message: process.env.NODE_ENV === "production" ? undefined : err.message,
+    });
+  }
 });
 
 // Create HTTP server and WebSocket server

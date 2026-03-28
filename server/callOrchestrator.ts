@@ -137,6 +137,21 @@ export class CallOrchestrator extends EventEmitter {
         })
         .catch((err) => {
           console.error(`[Orchestrator] Tool execution failed: ${err.message}`);
+          // Send error responses back to Gemini so it can acknowledge the error vocally
+          // (e.g., "I'm sorry, I wasn't able to check your calendar right now")
+          const errorResponses = calls.map((fc) => ({
+            id: fc.id,
+            name: fc.name ?? "unknown",
+            response: {
+              error: `The ${fc.name} service is temporarily unavailable. Please let the user know you couldn't complete this action right now.`,
+            },
+          }));
+          try {
+            this.geminiSession.sendToolResponse(errorResponses);
+          } catch {
+            // If we can't even send the error response, just log and continue
+            console.error(`[Orchestrator] Could not send error tool response to Gemini`);
+          }
           this.emit("error", err);
         });
     });

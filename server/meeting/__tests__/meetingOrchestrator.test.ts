@@ -365,13 +365,17 @@ describe("MeetingOrchestrator", () => {
       expect(mockSendAudio).not.toHaveBeenCalled();
     });
 
-    it("emits error when AI pipeline fails", async () => {
+    it("uses fallback answer when AI question handling fails", async () => {
       await orch.joinMeeting("https://meet.google.com/abc");
       mockHandleQuestion.mockRejectedValue(new Error("AI broke"));
 
-      const errors: Array<{ botId: string; message: string }> = [];
-      orch.on("error", (botId, err) =>
-        errors.push({ botId, message: err.message })
+      const responseEvents: Array<{
+        botId: string;
+        question: string;
+        answer: string;
+      }> = [];
+      orch.on("response", (botId, question, answer) =>
+        responseEvents.push({ botId, question, answer })
       );
 
       capturedCbs.transcript!(
@@ -380,10 +384,69 @@ describe("MeetingOrchestrator", () => {
       );
 
       await vi.waitFor(() => {
-        expect(errors).toHaveLength(1);
+        expect(responseEvents).toHaveLength(1);
       });
 
-      expect(errors[0]).toEqual({ botId: "bot_123", message: "AI broke" });
+      // Should use fallback answer instead of crashing
+      expect(responseEvents[0].answer).toContain("trouble processing");
+      // Should still attempt to generate audio with the fallback answer
+      expect(mockGenerateAudioResponse).toHaveBeenCalledWith(
+        expect.stringContaining("trouble processing")
+      );
+    });
+
+    it("continues operating when TTS fails", async () => {
+      await orch.joinMeeting("https://meet.google.com/abc");
+      mockGenerateAudioResponse.mockRejectedValue(new Error("TTS down"));
+
+      const responseEvents: Array<{
+        botId: string;
+        question: string;
+        answer: string;
+      }> = [];
+      orch.on("response", (botId, question, answer) =>
+        responseEvents.push({ botId, question, answer })
+      );
+
+      capturedCbs.transcript!(
+        "bot_123",
+        makeEntry("Alice", "Hey Voisli, help me")
+      );
+
+      await vi.waitFor(() => {
+        expect(responseEvents).toHaveLength(1);
+      });
+
+      // Should still emit response event despite TTS failure
+      expect(responseEvents[0].answer).toBe("Here is the answer.");
+      // Should not have attempted to send audio since TTS returned empty buffer
+      expect(mockSendAudio).not.toHaveBeenCalled();
+    });
+
+    it("continues operating when sendAudio fails", async () => {
+      await orch.joinMeeting("https://meet.google.com/abc");
+      mockSendAudio.mockRejectedValue(new Error("Recall API down"));
+
+      const responseEvents: Array<{
+        botId: string;
+        question: string;
+        answer: string;
+      }> = [];
+      orch.on("response", (botId, question, answer) =>
+        responseEvents.push({ botId, question, answer })
+      );
+
+      capturedCbs.transcript!(
+        "bot_123",
+        makeEntry("Alice", "Hey Voisli, help me")
+      );
+
+      await vi.waitFor(() => {
+        expect(responseEvents).toHaveLength(1);
+      });
+
+      // Should still emit response event despite send failure
+      expect(responseEvents[0].answer).toBe("Here is the answer.");
     });
   });
 

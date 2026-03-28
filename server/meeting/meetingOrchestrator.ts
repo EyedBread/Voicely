@@ -228,21 +228,42 @@ export class MeetingOrchestrator extends EventEmitter {
         `[MeetingOrchestrator] Bot ${botId} mentioned — question: "${question}"`
       );
 
-      // Get text response from AI
-      const answer = await this.ai.handleQuestion(question, meetingContext);
+      // Get text response from AI — catch errors so the bot doesn't crash
+      let answer: string;
+      try {
+        answer = await this.ai.handleQuestion(question, meetingContext);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[MeetingOrchestrator] AI question handling failed for bot ${botId}: ${msg}`);
+        answer = "I'm sorry, I'm having trouble processing that right now. Could you ask again in a moment?";
+      }
+
       console.log(
         `[MeetingOrchestrator] Bot ${botId} answer: "${answer.substring(0, 100)}..."`
       );
 
-      // Generate audio from the text response
-      const audioBuffer = await this.ai.generateAudioResponse(answer);
+      // Generate audio from the text response — catch errors independently
+      let audioBuffer: Buffer;
+      try {
+        audioBuffer = await this.ai.generateAudioResponse(answer);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[MeetingOrchestrator] TTS failed for bot ${botId}: ${msg}`);
+        audioBuffer = Buffer.alloc(0);
+      }
 
-      // Send audio back to the meeting via Recall.ai
+      // Send audio back to the meeting via Recall.ai — catch errors independently
       if (audioBuffer.length > 0) {
-        await recallClient.sendAudioToMeeting(botId, audioBuffer);
-        console.log(
-          `[MeetingOrchestrator] Sent ${audioBuffer.length} bytes of audio to bot ${botId}`
-        );
+        try {
+          await recallClient.sendAudioToMeeting(botId, audioBuffer);
+          console.log(
+            `[MeetingOrchestrator] Sent ${audioBuffer.length} bytes of audio to bot ${botId}`
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[MeetingOrchestrator] Failed to send audio to meeting ${botId}: ${msg}`);
+          // Don't rethrow — the bot continues to operate even if one response fails to send
+        }
       } else {
         console.warn(
           `[MeetingOrchestrator] No audio generated for bot ${botId}`

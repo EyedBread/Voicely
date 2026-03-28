@@ -15,6 +15,22 @@ interface BridgeStatus {
   };
 }
 
+interface ServiceHealthDetail {
+  status: "healthy" | "degraded" | "down" | "unconfigured";
+  latencyMs?: number;
+  error?: string;
+}
+
+interface HealthData {
+  status: "healthy" | "degraded" | "down";
+  services: {
+    twilio: ServiceHealthDetail;
+    gemini: ServiceHealthDetail;
+    googleCalendar: ServiceHealthDetail;
+    recall: ServiceHealthDetail;
+  };
+}
+
 interface RecentCall {
   id: string;
   twilioCallSid: string;
@@ -47,6 +63,7 @@ export default function Home() {
     message: string;
   } | null>(null);
   const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
+  const [health, setHealth] = useState<HealthData | null>(null);
 
   const addActivity = useCallback((type: string, message: string, timestamp: string) => {
     setActivityFeed((prev) => {
@@ -125,6 +142,17 @@ export default function Home() {
 
   const { status: sseStatus } = useServerEvents(handleEvent);
 
+  const fetchHealth = useCallback(async () => {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/health`);
+      if (res.ok || res.status === 503) {
+        setHealth(await res.json());
+      }
+    } catch {
+      setHealth(null);
+    }
+  }, []);
+
   useEffect(() => {
     async function fetchStatus() {
       try {
@@ -164,14 +192,16 @@ export default function Home() {
     fetchStatus();
     fetchCalls();
     fetchMeetings();
+    fetchHealth();
     // Polling as fallback — reduced frequency since SSE provides real-time updates
     const id = setInterval(() => {
       fetchStatus();
       fetchCalls();
       fetchMeetings();
+      fetchHealth();
     }, 30000);
     return () => clearInterval(id);
-  }, [fetchCalls]);
+  }, [fetchCalls, fetchHealth]);
 
   async function handleTestCall() {
     setCallLoading(true);
@@ -289,20 +319,43 @@ export default function Home() {
               ? `${Math.floor(status.uptime / 1000)}s uptime`
               : undefined
           }
+          error={!online ? "Cannot reach bridge server" : undefined}
         />
         <StatusCard
           label="Twilio"
-          status={
-            !online ? "unknown" : twilioReady ? "online" : "offline"
-          }
+          status={serviceHealthToCardStatus(health?.services.twilio, online, twilioReady)}
+          latencyMs={health?.services.twilio?.latencyMs}
+          error={health?.services.twilio?.error}
         />
         <StatusCard
           label="Gemini"
-          status={
-            !online ? "unknown" : geminiReady ? "online" : "offline"
-          }
+          status={serviceHealthToCardStatus(health?.services.gemini, online, geminiReady)}
+          latencyMs={health?.services.gemini?.latencyMs}
+          error={health?.services.gemini?.error}
         />
       </section>
+
+      {/* Additional Service Status (Calendar + Recall) */}
+      {health && (health.services.googleCalendar.status !== "unconfigured" || health.services.recall.status !== "unconfigured") && (
+        <section className="mb-8 grid gap-4 sm:grid-cols-2">
+          {health.services.googleCalendar.status !== "unconfigured" && (
+            <StatusCard
+              label="Google Calendar"
+              status={healthStatusToCard(health.services.googleCalendar.status)}
+              latencyMs={health.services.googleCalendar.latencyMs}
+              error={health.services.googleCalendar.error}
+            />
+          )}
+          {health.services.recall.status !== "unconfigured" && (
+            <StatusCard
+              label="Recall.ai"
+              status={healthStatusToCard(health.services.recall.status)}
+              latencyMs={health.services.recall.latencyMs}
+              error={health.services.recall.error}
+            />
+          )}
+        </section>
+      )}
 
       {/* Active Calls */}
       <section className="mb-8">
@@ -554,6 +607,33 @@ export default function Home() {
       </section>
     </div>
   );
+}
+
+function serviceHealthToCardStatus(
+  serviceHealth: ServiceHealthDetail | undefined,
+  online: boolean,
+  configReady: boolean
+): "online" | "offline" | "unknown" | "unconfigured" {
+  if (!online) return "unknown";
+  if (serviceHealth) {
+    return healthStatusToCard(serviceHealth.status);
+  }
+  return configReady ? "online" : "offline";
+}
+
+function healthStatusToCard(
+  status: "healthy" | "degraded" | "down" | "unconfigured"
+): "online" | "offline" | "unknown" | "unconfigured" {
+  switch (status) {
+    case "healthy":
+      return "online";
+    case "down":
+      return "offline";
+    case "unconfigured":
+      return "unconfigured";
+    default:
+      return "unknown";
+  }
 }
 
 function EventIcon({ type }: { type: string }) {

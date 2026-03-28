@@ -96,6 +96,30 @@ export interface BridgeServerStatus {
   };
 }
 
+// --- Health Check ---
+
+export type ServiceHealth = "healthy" | "degraded" | "down" | "unconfigured";
+
+export interface ServiceHealthDetail {
+  status: ServiceHealth;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface HealthCheckResponse {
+  status: "healthy" | "degraded" | "down";
+  uptime: number;
+  activeCalls: number;
+  activeMeetings: number;
+  services: {
+    twilio: ServiceHealthDetail;
+    gemini: ServiceHealthDetail;
+    googleCalendar: ServiceHealthDetail;
+    recall: ServiceHealthDetail;
+  };
+  timestamp: string;
+}
+
 // --- Gemini Configuration ---
 
 export interface GeminiConfig {

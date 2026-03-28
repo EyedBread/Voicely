@@ -19,17 +19,26 @@ function getWsUrl(path: string): string {
  * WebSocket media stream to the bridge server (inbound calls).
  */
 router.post("/twiml", (_req: Request, res: Response) => {
-  const response = new VoiceResponse();
+  try {
+    const response = new VoiceResponse();
 
-  // Greet the caller before connecting to the AI stream
-  response.say("Connecting you to Voisli");
+    // Greet the caller before connecting to the AI stream
+    response.say("Connecting you to Voisli");
 
-  // Open a bidirectional media stream to the bridge server
-  const connect = response.connect();
-  connect.stream({ url: getWsUrl("/media-stream") });
+    // Open a bidirectional media stream to the bridge server
+    const connect = response.connect();
+    connect.stream({ url: getWsUrl("/media-stream") });
 
-  res.type("text/xml");
-  res.send(response.toString());
+    res.type("text/xml");
+    res.send(response.toString());
+  } catch (err) {
+    console.error(`[TwiML] Error generating inbound TwiML: ${err instanceof Error ? err.message : err}`);
+    // Return a fallback TwiML that tells the caller about the error
+    const fallback = new VoiceResponse();
+    fallback.say("I'm sorry, we're experiencing technical difficulties. Please try again later.");
+    res.type("text/xml");
+    res.send(fallback.toString());
+  }
 });
 
 /**
@@ -39,18 +48,26 @@ router.post("/twiml", (_req: Request, res: Response) => {
  * pick the right system prompt.
  */
 router.post("/twiml/outbound", (req: Request, res: Response) => {
-  const purpose = (req.query.purpose as string) ?? "";
+  try {
+    const purpose = (req.query.purpose as string) ?? "";
 
-  const response = new VoiceResponse();
+    const response = new VoiceResponse();
 
-  // Open a bidirectional media stream with custom parameters
-  const connect = response.connect();
-  const stream = connect.stream({ url: getWsUrl("/media-stream-outbound") });
-  stream.parameter({ name: "purpose", value: purpose });
-  stream.parameter({ name: "direction", value: "outbound" });
+    // Open a bidirectional media stream with custom parameters
+    const connect = response.connect();
+    const stream = connect.stream({ url: getWsUrl("/media-stream-outbound") });
+    stream.parameter({ name: "purpose", value: purpose });
+    stream.parameter({ name: "direction", value: "outbound" });
 
-  res.type("text/xml");
-  res.send(response.toString());
+    res.type("text/xml");
+    res.send(response.toString());
+  } catch (err) {
+    console.error(`[TwiML] Error generating outbound TwiML: ${err instanceof Error ? err.message : err}`);
+    const fallback = new VoiceResponse();
+    fallback.say("I'm sorry, we're experiencing technical difficulties with this call.");
+    res.type("text/xml");
+    res.send(fallback.toString());
+  }
 });
 
 /**
@@ -58,17 +75,22 @@ router.post("/twiml/outbound", (req: Request, res: Response) => {
  * Twilio sends status callbacks here for outbound calls.
  */
 router.post("/call-status", (req: Request, res: Response) => {
-  const event: CallStatusEvent = {
-    callSid: req.body.CallSid ?? "",
-    callStatus: req.body.CallStatus ?? "",
-    direction: req.body.Direction ?? "",
-    to: req.body.To ?? "",
-    from: req.body.From ?? "",
-    timestamp: new Date().toISOString(),
-  };
+  try {
+    const event: CallStatusEvent = {
+      callSid: req.body.CallSid ?? "",
+      callStatus: req.body.CallStatus ?? "",
+      direction: req.body.Direction ?? "",
+      to: req.body.To ?? "",
+      from: req.body.From ?? "",
+      timestamp: new Date().toISOString(),
+    };
 
-  recordCallStatus(event);
-  res.sendStatus(204);
+    recordCallStatus(event);
+    res.sendStatus(204);
+  } catch (err) {
+    console.error(`[TwiML] Error processing call status: ${err instanceof Error ? err.message : err}`);
+    res.sendStatus(204); // Still acknowledge to Twilio to prevent retries
+  }
 });
 
 export default router;
