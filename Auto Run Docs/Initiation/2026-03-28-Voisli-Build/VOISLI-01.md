@@ -80,7 +80,7 @@ Phone Call ← Twilio ← WebSocket (mulaw 8kHz) ← Bridge Server ← Gemini Li
     - `BridgeServerStatus` — activeCalls, uptime, configured services
     - `GeminiConfig` — model name, system instruction, voice settings, tools
 
-- [ ] Build the Twilio integration layer in `server/twilio/`:
+- [x] Build the Twilio integration layer in `server/twilio/`:
   - Create `server/twilio/webhooks.ts`:
     - Export an Express router with a `POST /twiml` endpoint
     - Returns TwiML XML that uses `<Connect><Stream>` to open a bidirectional WebSocket media stream to the bridge server
