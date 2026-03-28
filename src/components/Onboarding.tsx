@@ -8,7 +8,7 @@ interface OnboardingProps {
   onComplete: (user: { id: number; email: string }) => void;
 }
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 export function Onboarding({ onComplete }: OnboardingProps) {
   const [step, setStep] = useState(0);
@@ -28,14 +28,13 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         <div key={step} className="animate-step-enter">
           {step === 0 && <StepHook />}
           {step === 1 && <StepCapabilities />}
-          {step === 2 && <StepDemo />}
-          {step === 3 && <StepSignup onComplete={onComplete} />}
+          {step === 2 && <StepSignup onComplete={onComplete} />}
         </div>
 
         {/* Navigation */}
         <div className="mt-8 flex items-center justify-between">
           <div>
-            {step > 0 && step < 3 && (
+            {step > 0 && step < 2 && (
               <button
                 onClick={back}
                 className="text-sm text-muted hover:text-foreground transition-colors"
@@ -63,7 +62,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
           </div>
 
           <div>
-            {step < 3 ? (
+            {step < 2 ? (
               <button
                 onClick={next}
                 className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95"
@@ -224,80 +223,7 @@ function StepCapabilities() {
   );
 }
 
-/* ─── Step 2: Demo ─── */
-function StepDemo() {
-  const lines = [
-    { type: "prompt" as const, text: '"Call Mario\'s Pizza at +1-555-0123 and reserve a table for 4 at 7pm tonight"' },
-    { type: "system" as const, text: "Using make_call..." },
-    { type: "system" as const, text: "Call connected. AI negotiating reservation." },
-    { type: "result" as const, text: "Reservation confirmed for 4 at 7:00 PM under your name." },
-  ];
-
-  return (
-    <div>
-      <h2 className="text-center text-3xl font-bold tracking-tight text-foreground">
-        One prompt. Real results.
-      </h2>
-      <p className="mt-2 text-center text-muted">
-        Your AI agent handles the entire conversation autonomously.
-      </p>
-
-      {/* Terminal mockup */}
-      <div className="mx-auto mt-8 max-w-lg">
-        <div className="rounded-xl border border-card-border bg-background overflow-hidden">
-          {/* Terminal header */}
-          <div className="flex items-center gap-2 border-b border-card-border px-4 py-2.5">
-            <span className="h-3 w-3 rounded-full bg-danger/60" />
-            <span className="h-3 w-3 rounded-full bg-warning/60" />
-            <span className="h-3 w-3 rounded-full bg-success/60" />
-            <span className="ml-2 text-xs text-muted/60 font-mono">claude</span>
-          </div>
-
-          {/* Terminal body */}
-          <div className="p-4 font-mono text-sm space-y-3">
-            {lines.map((line, i) => (
-              <div
-                key={i}
-                className="animate-slide-in"
-                style={{ animationDelay: `${i * 200}ms` }}
-              >
-                {line.type === "prompt" && (
-                  <div className="flex gap-2">
-                    <span className="text-accent-light shrink-0">&gt;</span>
-                    <span className="text-foreground">{line.text}</span>
-                  </div>
-                )}
-                {line.type === "system" && (
-                  <div className="flex items-center gap-2">
-                    {line.text.includes("connected") && (
-                      <span className="flex items-center gap-0.5 h-4">
-                        <span className="waveform-bar" />
-                        <span className="waveform-bar" />
-                        <span className="waveform-bar" />
-                      </span>
-                    )}
-                    <span className="text-muted">{line.text}</span>
-                  </div>
-                )}
-                {line.type === "result" && (
-                  <div className="rounded-lg bg-success/10 px-3 py-2">
-                    <span className="text-success">{line.text}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="mt-4 text-center text-xs text-muted/60">
-          This is a real flow. Voisli handles the entire phone conversation with AI.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Step 3: Sign Up ─── */
+/* ─── Step 2: Sign Up ─── */
 function StepSignup({ onComplete }: { onComplete: (user: { id: number; email: string }) => void }) {
   return (
     <div className="mx-auto max-w-sm">

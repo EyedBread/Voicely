@@ -7,6 +7,7 @@ import ActiveCalls from "@/components/ActiveCalls";
 import { useServerEvents, type ServerEvent } from "@/hooks/useServerEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { Onboarding } from "@/components/Onboarding";
+import { SetupWizard } from "@/components/SetupWizard";
 
 interface BridgeStatus {
   activeCalls: number;
@@ -55,7 +56,7 @@ const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
 export default function Home() {
-  const { isAuthenticated, loading: authLoading, login } = useAuth();
+  const { isAuthenticated, setupCompleted, loading: authLoading, login, completeSetup } = useAuth();
   const [status, setStatus] = useState<BridgeStatus | null>(null);
   const [online, setOnline] = useState(false);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -247,6 +248,10 @@ export default function Home() {
 
   if (!isAuthenticated) {
     return <Onboarding onComplete={login} />;
+  }
+
+  if (!setupCompleted) {
+    return <SetupWizard onComplete={completeSetup} />;
   }
 
   return (
