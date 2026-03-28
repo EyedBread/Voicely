@@ -10,6 +10,7 @@ export interface ServerConfig {
   };
   gemini: {
     apiKey: string;
+    liveModel: string;
   };
   googleCalendar: {
     serviceAccountEmail: string;
@@ -58,6 +59,7 @@ export const config: ServerConfig = {
   },
   gemini: {
     apiKey: getEnv("GEMINI_API_KEY"),
+    liveModel: getEnv("GEMINI_LIVE_MODEL", "gemini-3.1-flash-live-preview"),
   },
   googleCalendar: {
     serviceAccountEmail: getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL"),

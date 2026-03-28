@@ -60,7 +60,11 @@ vi.mock("../../gemini/liveClient.js", () => ({
   },
 }));
 
-import { MeetingOrchestrator } from "../meetingOrchestrator";
+import {
+  MeetingOrchestrator,
+  findWakeMatch,
+  normalizeWakeText,
+} from "../meetingOrchestrator";
 
 function botResponse(id = "bot_123") {
   return {
@@ -153,6 +157,31 @@ describe("MeetingOrchestrator", () => {
     });
   });
 
+  it("matches phonetic wake phrase variants", () => {
+    expect(normalizeWakeText("Hey, voice-lee!")).toBe("hey voice lee");
+    expect(findWakeMatch("Hey, voice lee").matchedAlias).toBe("voice lee");
+    expect(findWakeMatch("ok voicely").matchedAlias).toBe("voicely");
+    expect(findWakeMatch("yo voisley").matchedAlias).toBe("voisley");
+    expect(findWakeMatch("voyage planning").matchedAlias).toBeNull();
+  });
+
+  it("responds when a phonetic wake phrase is heard", async () => {
+    gemini.emit("inputTranscription", "Hey, voice lee, can you hear me?");
+    gemini.emit("outputTranscription", "Yes, I can hear you.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
+
+    await vi.waitFor(() => {
+      expect(mockSendAudio).toHaveBeenCalledTimes(1);
+    });
+
+    expect(mockSendAudio).toHaveBeenCalledWith(
+      "bot_123",
+      expect.any(Buffer),
+      24000,
+    );
+  });
+
   it("allows a follow-up turn during the wake window", async () => {
     gemini.emit("inputTranscription", "Hey Voisli, first question");
     gemini.emit("outputTranscription", "First answer");
@@ -188,6 +217,15 @@ describe("MeetingOrchestrator", () => {
       name: "search_business",
       response: { ignored: true },
     });
+  });
+
+  it("drops model output before wake", async () => {
+    gemini.emit("outputTranscription", "I should stay silent.");
+    gemini.emit("audio", Buffer.alloc(4800));
+    gemini.emit("turnComplete");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockSendAudio).not.toHaveBeenCalled();
   });
 
   it("updates session status from webhook callbacks", () => {

@@ -12,7 +12,7 @@ import { config } from "@server/config";
 import type { GeminiConfig } from "../../shared/types";
 
 const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
-  model: "gemini-live-3.1-flash-live-preview",
+  model: config.gemini.liveModel,
   systemInstruction:
     "You are Voisli, a helpful AI voice assistant. You help users make phone calls, reservations, and manage their schedule. Be conversational, concise, and friendly. Keep responses short since this is a voice conversation.",
   voice: "Aoede",
@@ -21,6 +21,7 @@ const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
   outputAudioTranscription: true,
 };
 
+// Gemini Live expects raw 16-bit PCM audio at 16 kHz for inbound streaming.
 const AUDIO_MIME_TYPE = "audio/pcm;rate=16000";
 
 const MAX_RECONNECT_ATTEMPTS = 3;
