@@ -8,6 +8,7 @@ import { MeetingContextManager } from "./contextManager.js";
 import { MeetingAI } from "./meetingAI.js";
 import * as recallClient from "./recallClient.js";
 import { onTranscript, onStatusChange } from "./webhooks.js";
+import { emitServerEvent } from "../events.js";
 
 // ---------------------------------------------------------------------------
 // Meeting orchestrator — manages the full lifecycle of a meeting session:
@@ -77,6 +78,12 @@ export class MeetingOrchestrator extends EventEmitter {
     console.log(
       `[MeetingOrchestrator] Bot ${botResponse.id} created for meeting: ${meetingUrl}`
     );
+
+    emitServerEvent("meeting_joined", {
+      botId: botResponse.id,
+      meetingUrl,
+      status: session.status,
+    });
 
     return { ...session };
   }
@@ -152,6 +159,13 @@ export class MeetingOrchestrator extends EventEmitter {
       session.contextWindow = cm.getTranscript();
     }
 
+    emitServerEvent("transcript_update", {
+      botId,
+      speaker: entry.speaker,
+      text: entry.text,
+      timestamp: entry.timestamp instanceof Date ? entry.timestamp.toISOString() : String(entry.timestamp),
+    });
+
     // Check if the bot was mentioned / a question was directed at it
     if (cm.detectBotMention(entry)) {
       this.handleBotMention(botId, entry).catch((err) => {
@@ -214,21 +228,42 @@ export class MeetingOrchestrator extends EventEmitter {
         `[MeetingOrchestrator] Bot ${botId} mentioned — question: "${question}"`
       );
 
-      // Get text response from AI
-      const answer = await this.ai.handleQuestion(question, meetingContext);
+      // Get text response from AI — catch errors so the bot doesn't crash
+      let answer: string;
+      try {
+        answer = await this.ai.handleQuestion(question, meetingContext);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[MeetingOrchestrator] AI question handling failed for bot ${botId}: ${msg}`);
+        answer = "I'm sorry, I'm having trouble processing that right now. Could you ask again in a moment?";
+      }
+
       console.log(
         `[MeetingOrchestrator] Bot ${botId} answer: "${answer.substring(0, 100)}..."`
       );
 
-      // Generate audio from the text response
-      const audioBuffer = await this.ai.generateAudioResponse(answer);
+      // Generate audio from the text response — catch errors independently
+      let audioBuffer: Buffer;
+      try {
+        audioBuffer = await this.ai.generateAudioResponse(answer);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[MeetingOrchestrator] TTS failed for bot ${botId}: ${msg}`);
+        audioBuffer = Buffer.alloc(0);
+      }
 
-      // Send audio back to the meeting via Recall.ai
+      // Send audio back to the meeting via Recall.ai — catch errors independently
       if (audioBuffer.length > 0) {
-        await recallClient.sendAudioToMeeting(botId, audioBuffer);
-        console.log(
-          `[MeetingOrchestrator] Sent ${audioBuffer.length} bytes of audio to bot ${botId}`
-        );
+        try {
+          await recallClient.sendAudioToMeeting(botId, audioBuffer);
+          console.log(
+            `[MeetingOrchestrator] Sent ${audioBuffer.length} bytes of audio to bot ${botId}`
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[MeetingOrchestrator] Failed to send audio to meeting ${botId}: ${msg}`);
+          // Don't rethrow — the bot continues to operate even if one response fails to send
+        }
       } else {
         console.warn(
           `[MeetingOrchestrator] No audio generated for bot ${botId}`
@@ -237,6 +272,12 @@ export class MeetingOrchestrator extends EventEmitter {
 
       this.lastResponseTime.set(botId, Date.now());
       this.emit("response", botId, question, answer);
+
+      emitServerEvent("bot_spoke", {
+        botId,
+        question,
+        answer,
+      });
     } finally {
       this.responding.delete(botId);
     }

@@ -4,7 +4,7 @@ This is the final phase — polish the UI, add real-time updates so the dashboar
 
 ## Tasks
 
-- [ ] Add real-time WebSocket updates to the Next.js dashboard so it reflects live activity without polling:
+- [x] Add real-time WebSocket updates to the Next.js dashboard so it reflects live activity without polling:
   - Search the existing `server/index.ts` and dashboard components to understand the current polling approach before making changes
   - Create `server/events.ts` — a server-sent events (SSE) or WebSocket endpoint for the dashboard:
     - Add a `GET /events` SSE endpoint to the Express bridge server
@@ -20,7 +20,7 @@ This is the final phase — polish the UI, add real-time updates so the dashboar
     - `src/app/calls/page.tsx` — calls appear/update in real-time
     - `src/app/meetings/[botId]/page.tsx` — transcript updates stream in live
 
-- [ ] Polish the dashboard UI for demo-day visual impact:
+- [x] Polish the dashboard UI for demo-day visual impact:
   - Search all existing components in `src/components/` and pages in `src/app/` to understand the current design before making changes
   - Enhance the main dashboard (`src/app/page.tsx`):
     - Add an animated activity feed showing real-time events with timestamps (call started, tool invoked, meeting joined, etc.)
@@ -39,7 +39,7 @@ This is the final phase — polish the UI, add real-time updates so the dashboar
     - Loading states and empty states that look intentional, not broken
     - Ensure all pages work well at 1920x1080 (common projector resolution)
 
-- [ ] Build a demo control panel for the hackathon presentation:
+- [x] Build a demo control panel for the hackathon presentation:
   - Create `src/app/demo/page.tsx` — a special page for running the demo:
     - **Demo Flow 1: Restaurant Reservation**
       - "Start Demo Call" button that shows the Twilio number to call (or initiates an outbound call to a test number)
@@ -57,7 +57,7 @@ This is the final phase — polish the UI, add real-time updates so the dashboar
     - Each section has a status indicator (ready / in progress / completed)
     - All three flows visible on one scrollable page for easy presentation
 
-- [ ] Create comprehensive error handling and graceful degradation:
+- [x] Create comprehensive error handling and graceful degradation:
   - Search all server files in `server/` for existing error handling patterns and extend them consistently
   - Update `server/index.ts` with a global error handler middleware
   - Ensure each external service failure (Twilio, Gemini, Recall.ai, Google Calendar) is caught and produces a user-friendly error:
