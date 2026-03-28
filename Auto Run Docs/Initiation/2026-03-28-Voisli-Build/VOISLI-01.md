@@ -50,7 +50,7 @@ Phone Call ← Twilio ← WebSocket (mulaw 8kHz) ← Bridge Server ← Gemini Li
     - `"build"` — builds the Next.js app
   - Configure `tsconfig.json` to support both Next.js (src/) and the standalone server (server/) — use path aliases like `@/` for src and `@server/` for server
 
-- [ ] Create environment configuration and shared type definitions:
+- [x] Create environment configuration and shared type definitions:
   - Create `.env.example` with clearly documented variables:
     ```
     # Twilio Configuration
