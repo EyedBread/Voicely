@@ -9,7 +9,9 @@ import { getSystemPrompt, type CallContext } from "./gemini/prompts";
 import type { CallSession, CallStatus, CallDirection } from "../shared/types";
 import { emitServerEvent } from "./events";
 
-const MIN_AUDIO_CHUNK_BYTES = 4000;
+// Lower chunk sizes reduce latency for live conversations.
+const MIN_AUDIO_CHUNK_BYTES = 1600;
+const AUDIO_FLUSH_INTERVAL_MS = 40;
 
 export interface CallOrchestratorOptions {
   direction?: CallDirection;
@@ -28,6 +30,7 @@ export class CallOrchestrator extends EventEmitter {
   private geminiSession: GeminiLiveSession;
   private session: CallSession;
   private audioBuffer: Buffer = Buffer.alloc(0);
+  private audioFlushTimer: ReturnType<typeof setTimeout> | null = null;
   private cleanedUp = false;
 
   constructor(twilioWs: WebSocket, options: CallOrchestratorOptions = {}) {
@@ -81,11 +84,12 @@ export class CallOrchestrator extends EventEmitter {
       this.audioBuffer = Buffer.concat([this.audioBuffer, pcm16k]);
 
       if (this.audioBuffer.length >= MIN_AUDIO_CHUNK_BYTES) {
-        console.log(
-          `[Orchestrator] Sending buffered audio to Gemini bytes=${this.audioBuffer.length}`,
+        this.flushAudioBuffer();
+      } else if (!this.audioFlushTimer) {
+        this.audioFlushTimer = setTimeout(
+          () => this.flushAudioBuffer(),
+          AUDIO_FLUSH_INTERVAL_MS,
         );
-        this.geminiSession.sendAudio(this.audioBuffer);
-        this.audioBuffer = Buffer.alloc(0);
       }
     });
 
@@ -107,12 +111,12 @@ export class CallOrchestrator extends EventEmitter {
       this.updateStatus("active");
       console.log("[Orchestrator] Gemini connected; call is now active");
 
-      if (this.audioBuffer.length > 0) {
-        console.log(
-          `[Orchestrator] Flushing buffered audio to Gemini on connect bytes=${this.audioBuffer.length}`,
+      this.flushAudioBuffer();
+
+      if (this.session.direction === "outbound") {
+        this.geminiSession.sendText(
+          "The call has been answered. Start speaking now - introduce yourself and state your purpose.",
         );
-        this.geminiSession.sendAudio(this.audioBuffer);
-        this.audioBuffer = Buffer.alloc(0);
       }
     });
 
@@ -147,9 +151,24 @@ export class CallOrchestrator extends EventEmitter {
           this.geminiSession.sendToolResponse(responses);
         })
         .catch((err) => {
-          console.error(
-            `[Orchestrator] Tool execution failed: ${err.message}`,
-          );
+          console.error(`[Orchestrator] Tool execution failed: ${err.message}`);
+
+          const errorResponses = calls.map((fc) => ({
+            id: fc.id,
+            name: fc.name ?? "unknown",
+            response: {
+              error: `The ${fc.name} service is temporarily unavailable. Please let the user know you couldn't complete this action right now.`,
+            },
+          }));
+
+          try {
+            this.geminiSession.sendToolResponse(errorResponses);
+          } catch {
+            console.error(
+              "[Orchestrator] Could not send error tool response to Gemini",
+            );
+          }
+
           this.emit("error", err);
         });
     });
@@ -175,6 +194,18 @@ export class CallOrchestrator extends EventEmitter {
     });
   }
 
+  private flushAudioBuffer(): void {
+    if (this.audioFlushTimer) {
+      clearTimeout(this.audioFlushTimer);
+      this.audioFlushTimer = null;
+    }
+
+    if (this.audioBuffer.length > 0) {
+      this.geminiSession.sendAudio(this.audioBuffer);
+      this.audioBuffer = Buffer.alloc(0);
+    }
+  }
+
   private updateStatus(status: CallStatus): void {
     this.session.status = status;
     if (status === "ended") {
@@ -190,6 +221,11 @@ export class CallOrchestrator extends EventEmitter {
     console.log(
       `[Orchestrator] Cleaning up call ${this.session.twilioCallSid || this.session.id} status=${this.session.status} bufferedAudio=${this.audioBuffer.length}`,
     );
+
+    if (this.audioFlushTimer) {
+      clearTimeout(this.audioFlushTimer);
+      this.audioFlushTimer = null;
+    }
 
     this.geminiSession.close();
     this.twilioStream.close();

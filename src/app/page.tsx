@@ -1,532 +1,140 @@
-"use client";
-
-import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import StatusCard from "@/components/StatusCard";
-import ActiveCalls from "@/components/ActiveCalls";
-import { useServerEvents, type ServerEvent } from "@/hooks/useServerEvents";
 
-interface BridgeStatus {
-  activeCalls: number;
-  uptime: number;
-  configuredServices: {
-    twilio: boolean;
-    gemini: boolean;
-  };
-}
-
-interface RecentCall {
-  id: string;
-  twilioCallSid: string;
-  status: "connecting" | "active" | "ended";
-  direction: "inbound" | "outbound";
-  purpose?: string;
-  outcome?: string;
-  startedAt: string;
-  endedAt?: string;
-}
-
-interface ActivityEntry {
-  id: string;
-  type: string;
-  message: string;
-  timestamp: string;
-}
-
-const BRIDGE_URL =
-  process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
-
-export default function Home() {
-  const [status, setStatus] = useState<BridgeStatus | null>(null);
-  const [online, setOnline] = useState(false);
-  const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
-  const [activeMeetings, setActiveMeetings] = useState(0);
-  const [callLoading, setCallLoading] = useState(false);
-  const [callResult, setCallResult] = useState<{
-    success: boolean;
-    message: string;
-  } | null>(null);
-  const [activityFeed, setActivityFeed] = useState<ActivityEntry[]>([]);
-
-  const addActivity = useCallback((type: string, message: string, timestamp: string) => {
-    setActivityFeed((prev) => {
-      const entry: ActivityEntry = {
-        id: crypto.randomUUID(),
-        type,
-        message,
-        timestamp,
-      };
-      return [entry, ...prev].slice(0, 20);
-    });
-  }, []);
-
-  const fetchCalls = useCallback(async () => {
-    try {
-      const res = await fetch(`${BRIDGE_URL}/calls`);
-      if (res.ok) {
-        const data = await res.json();
-        setRecentCalls((data.calls ?? []).slice(0, 5));
-      }
-    } catch {
-      // Bridge not available
-    }
-  }, []);
-
-  // Handle real-time events
-  const handleEvent = useCallback(
-    (event: ServerEvent) => {
-      switch (event.type) {
-        case "call_started": {
-          const dir = (event.data.direction as string) ?? "inbound";
-          addActivity(event.type, `${dir} call started`, event.timestamp);
-          fetchCalls();
-          setStatus((prev) =>
-            prev ? { ...prev, activeCalls: prev.activeCalls + 1 } : prev
-          );
-          break;
-        }
-        case "call_ended": {
-          const dir = (event.data.direction as string) ?? "";
-          addActivity(event.type, `${dir} call ended`, event.timestamp);
-          fetchCalls();
-          setStatus((prev) =>
-            prev
-              ? { ...prev, activeCalls: Math.max(0, prev.activeCalls - 1) }
-              : prev
-          );
-          break;
-        }
-        case "tool_invoked": {
-          const tool = (event.data.tool as string) ?? "unknown";
-          addActivity(event.type, `Tool invoked: ${tool}`, event.timestamp);
-          break;
-        }
-        case "meeting_joined": {
-          const url = (event.data.meetingUrl as string) ?? "";
-          addActivity(event.type, `Bot joined meeting: ${url.slice(0, 40)}`, event.timestamp);
-          setActiveMeetings((prev) => prev + 1);
-          break;
-        }
-        case "transcript_update": {
-          const speaker = (event.data.speaker as string) ?? "";
-          const text = (event.data.text as string) ?? "";
-          addActivity(event.type, `${speaker}: ${text.slice(0, 60)}`, event.timestamp);
-          break;
-        }
-        case "bot_spoke": {
-          const answer = (event.data.answer as string) ?? "";
-          addActivity(event.type, `Bot spoke: ${answer.slice(0, 60)}`, event.timestamp);
-          break;
-        }
-      }
-    },
-    [addActivity, fetchCalls]
-  );
-
-  const { status: sseStatus } = useServerEvents(handleEvent);
-
-  useEffect(() => {
-    async function fetchStatus() {
-      try {
-        const res = await fetch(`${BRIDGE_URL}/status`);
-        if (res.ok) {
-          setStatus(await res.json());
-          setOnline(true);
-        } else {
-          setOnline(false);
-        }
-      } catch {
-        setOnline(false);
-        setStatus(null);
-      }
-    }
-
-    async function fetchMeetings() {
-      try {
-        const res = await fetch(`${BRIDGE_URL}/meetings`);
-        if (res.ok) {
-          const data = await res.json();
-          const sessions = data.sessions ?? [];
-          setActiveMeetings(
-            sessions.filter(
-              (s: { status: string }) =>
-                s.status === "creating" ||
-                s.status === "joining" ||
-                s.status === "in_call"
-            ).length
-          );
-        }
-      } catch {
-        // Bridge not available
-      }
-    }
-
-    fetchStatus();
-    fetchCalls();
-    fetchMeetings();
-    // Polling as fallback — reduced frequency since SSE provides real-time updates
-    const id = setInterval(() => {
-      fetchStatus();
-      fetchCalls();
-      fetchMeetings();
-    }, 30000);
-    return () => clearInterval(id);
-  }, [fetchCalls]);
-
-  async function handleTestCall() {
-    setCallLoading(true);
-    setCallResult(null);
-    try {
-      const res = await fetch(`${BRIDGE_URL}/calls/outbound`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          toNumber: "+46737869515",
-          purpose:
-            "Make a reservation for 2 people tonight at 7pm under the name Smith",
-        }),
-      });
-      const data = await res.json();
-      setCallResult({
-        success: res.ok,
-        message: res.ok
-          ? "Test call initiated successfully"
-          : data.error || "Failed to initiate call",
-      });
-      if (res.ok) fetchCalls();
-    } catch {
-      setCallResult({
-        success: false,
-        message: "Could not reach bridge server",
-      });
-    } finally {
-      setCallLoading(false);
-    }
-  }
-
-  const twilioReady = status?.configuredServices.twilio ?? false;
-  const geminiReady = status?.configuredServices.gemini ?? false;
-
+export default function HomePage() {
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
-      {/* Hero */}
-      <section className="mb-10">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground">
-          Voisli
-        </h1>
-        <p className="mt-2 text-lg text-muted">Your AI Voice Assistant</p>
-        {/* SSE connection indicator */}
-        <p className="mt-1 text-xs text-muted/60">
-          Live updates:{" "}
-          <span
-            className={
-              sseStatus === "connected"
-                ? "text-success"
-                : sseStatus === "connecting"
-                  ? "text-yellow-400"
-                  : "text-danger"
-            }
-          >
-            {sseStatus}
-          </span>
-        </p>
-      </section>
+    <div className="flex min-h-screen flex-col">
+      <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="h-5 w-5 text-white"
+            >
+              <path
+                fillRule="evenodd"
+                d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <span className="text-xl font-bold tracking-tight">Voisli</span>
+        </div>
+        <div />
+      </nav>
 
-      {/* Status Cards */}
-      <section className="mb-8 grid gap-4 sm:grid-cols-3">
-        <StatusCard
-          label="Bridge Server"
-          status={online ? "online" : "offline"}
-          detail={
-            online && status
-              ? `${Math.floor(status.uptime / 1000)}s uptime`
-              : undefined
-          }
-        />
-        <StatusCard
-          label="Twilio"
-          status={!online ? "unknown" : twilioReady ? "online" : "offline"}
-        />
-        <StatusCard
-          label="Gemini"
-          status={!online ? "unknown" : geminiReady ? "online" : "offline"}
-        />
-      </section>
+      <main className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+        <div className="mx-auto max-w-2xl space-y-8">
+          <div className="inline-flex items-center gap-2 rounded-full border border-card-border/60 bg-card/60 px-4 py-1.5 text-sm text-muted backdrop-blur-sm">
+            <span className="inline-block h-2 w-2 animate-pulse-dot rounded-full bg-success" />
+            Powered by Gemini Live
+          </div>
 
-      {/* Active Calls */}
-      <section className="mb-8">
-        <ActiveCalls calls={[]} />
-      </section>
+          <h1 className="text-5xl font-bold leading-[1.1] tracking-tight sm:text-6xl">
+            Your AI
+            <br />
+            <span className="text-accent-light">Voice Assistant</span>
+          </h1>
 
-      {/* Active Meetings */}
-      <section className="mb-8 rounded-xl border border-card-border bg-card p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+          <p className="mx-auto max-w-md text-lg leading-relaxed text-muted">
+            Voisli answers calls, joins meetings, and takes action so you never
+            miss what matters.
+          </p>
+
+          <div className="flex items-center justify-center gap-4 pt-2">
+            <Link
+              href="/app"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:bg-accent-light active:scale-[0.98]"
+            >
+              Get Started
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center rounded-lg border border-card-border px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
+            >
+              Login
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-24 grid w-full max-w-3xl grid-cols-1 gap-6 sm:grid-cols-3">
+          <div className="glass-card rounded-xl p-6 text-left">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/20">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
                 className="h-5 w-5 text-accent-light"
               >
-                <path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" />
+                <path
+                  fillRule="evenodd"
+                  d="M1.5 4.5a3 3 0 013-3h1.372c.86 0 1.61.586 1.819 1.42l1.105 4.423a1.875 1.875 0 01-.694 1.955l-1.293.97c-.135.101-.164.249-.126.352a11.285 11.285 0 006.697 6.697c.103.038.25.009.352-.126l.97-1.293a1.875 1.875 0 011.955-.694l4.423 1.105c.834.209 1.42.959 1.42 1.82V19.5a3 3 0 01-3 3h-2.25C8.552 22.5 1.5 15.448 1.5 6.75V4.5z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Active Meetings
-              </h2>
-              <p className="text-sm text-muted">
-                {activeMeetings === 0
-                  ? "No bots in meetings"
-                  : `${activeMeetings} bot${activeMeetings !== 1 ? "s" : ""} in meetings`}
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/meetings"
-            className="text-sm text-accent-light hover:text-accent transition-colors"
-          >
-            View all
-          </Link>
-        </div>
-      </section>
-
-      {/* Make a Test Call */}
-      <section className="mb-8 rounded-xl border border-card-border bg-card p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              Make a Test Call
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              Trigger an outbound call to a test restaurant number
+            <h3 className="mb-1 font-semibold">Smart Calls</h3>
+            <p className="text-sm leading-relaxed text-muted">
+              AI answers and handles inbound calls with natural conversation.
             </p>
           </div>
-          <button
-            onClick={handleTestCall}
-            disabled={callLoading || !online}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {callLoading ? "Calling..." : "Place Test Call"}
-          </button>
-        </div>
-        {callResult && (
-          <p
-            className={`mt-3 text-sm ${callResult.success ? "text-success" : "text-danger"}`}
-          >
-            {callResult.message}
-          </p>
-        )}
-      </section>
 
-      {/* Live Activity Feed */}
-      <section className="mb-8 rounded-xl border border-card-border bg-card">
-        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
-          <h2 className="text-lg font-semibold text-foreground">
-            Live Activity
-          </h2>
-          <span className="text-xs text-muted">Real-time events</span>
-        </div>
-        {activityFeed.length === 0 ? (
-          <div className="px-5 py-8 text-center">
-            <p className="text-sm text-muted">No live events yet</p>
-            <p className="mt-1 text-xs text-muted/60">
-              Events will appear here in real-time as calls and meetings happen
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-card-border max-h-64 overflow-y-auto">
-            {activityFeed.map((entry) => (
-              <li key={entry.id} className="flex items-center gap-3 px-5 py-2.5">
-                <EventIcon type={entry.type} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-foreground truncate">
-                    {entry.message}
-                  </p>
-                </div>
-                <span className="shrink-0 text-xs text-muted/60">
-                  {new Date(entry.timestamp).toLocaleTimeString()}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Recent Call Activity */}
-      <section className="mb-8 rounded-xl border border-card-border bg-card">
-        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
-          <h2 className="text-lg font-semibold text-foreground">
-            Recent Activity
-          </h2>
-          <Link
-            href="/calls"
-            className="text-sm text-accent-light hover:text-accent transition-colors"
-          >
-            View all
-          </Link>
-        </div>
-        {recentCalls.length === 0 ? (
-          <div className="px-5 py-8 text-center">
-            <p className="text-sm text-muted">No recent calls</p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-card-border">
-            {recentCalls.map((call) => (
-              <li
-                key={call.id}
-                className="flex items-center justify-between px-5 py-3"
+          <div className="glass-card rounded-xl p-6 text-left">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/20">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5 text-accent-light"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
-                      call.direction === "inbound"
-                        ? "bg-accent/20 text-accent-light"
-                        : "bg-success/20 text-success"
-                    }`}
-                  >
-                    {call.direction === "inbound" ? "\u2193" : "\u2191"}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground capitalize">
-                      {call.direction}
-                    </p>
-                    {call.purpose && (
-                      <p className="text-xs text-muted truncate max-w-xs">
-                        {call.purpose}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <span
-                  className={`text-xs font-medium capitalize ${
-                    call.status === "active"
-                      ? "text-success"
-                      : call.status === "connecting"
-                        ? "text-yellow-400"
-                        : "text-muted"
-                  }`}
-                >
-                  {call.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                <path d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 6a.75.75 0 00-1.5 0v6c0 .414.336.75.75.75h4.5a.75.75 0 000-1.5h-3.75V6z" />
+              </svg>
+            </div>
+            <h3 className="mb-1 font-semibold">Meeting Notes</h3>
+            <p className="text-sm leading-relaxed text-muted">
+              Joins meetings, records transcripts, and summarizes key points.
+            </p>
+          </div>
 
-      {/* Quick Setup */}
-      {(!twilioReady || !geminiReady) && (
-        <section className="mb-8 rounded-xl border border-card-border bg-card p-6">
-          <h2 className="text-lg font-semibold text-foreground">Quick Setup</h2>
-          <p className="mt-1 text-sm text-muted">
-            Configure these environment variables in your{" "}
-            <code className="rounded bg-background px-1.5 py-0.5 font-mono text-xs text-accent-light">
-              .env
-            </code>{" "}
-            file to get started.
-          </p>
-          <ul className="mt-4 space-y-2 text-sm">
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_ACCOUNT_SID"
-              description="Twilio Account SID"
-            />
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_AUTH_TOKEN"
-              description="Twilio Auth Token"
-            />
-            <EnvRow
-              ready={twilioReady}
-              name="TWILIO_PHONE_NUMBER"
-              description="Twilio Phone Number"
-            />
-            <EnvRow
-              ready={geminiReady}
-              name="GEMINI_API_KEY"
-              description="Google Gemini API Key"
-            />
-          </ul>
-        </section>
-      )}
+          <div className="glass-card rounded-xl p-6 text-left">
+            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-accent/20">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="h-5 w-5 text-accent-light"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <h3 className="mb-1 font-semibold">Integrations</h3>
+            <p className="text-sm leading-relaxed text-muted">
+              Connects with Twilio, Google Calendar, and more out of the box.
+            </p>
+          </div>
+        </div>
+      </main>
 
-      {/* How to Test */}
-      <section className="rounded-xl border border-card-border bg-card p-6">
-        <h2 className="text-lg font-semibold text-foreground">How to Test</h2>
-        <ol className="mt-4 space-y-3 text-sm text-muted">
-          <Step
-            n={1}
-            text="Configure your .env file with Twilio and Gemini API credentials"
-          />
-          <Step
-            n={2}
-            text="Start ngrok to expose the bridge server: ngrok http 8080"
-          />
-          <Step
-            n={3}
-            text="Set the ngrok URL as PUBLIC_SERVER_URL in .env and configure the Twilio webhook to point to it"
-          />
-          <Step
-            n={4}
-            text="Call your Twilio phone number — you'll be connected to the Gemini voice AI"
-          />
-        </ol>
-      </section>
+      <footer className="px-6 py-8 text-center text-sm text-muted">
+        Voisli &mdash; AI Voice Assistant
+      </footer>
     </div>
-  );
-}
-
-function EventIcon({ type }: { type: string }) {
-  const iconMap: Record<string, { bg: string; label: string }> = {
-    call_started: { bg: "bg-success/20 text-success", label: "C" },
-    call_ended: { bg: "bg-muted/20 text-muted", label: "C" },
-    tool_invoked: { bg: "bg-yellow-500/20 text-yellow-400", label: "T" },
-    meeting_joined: { bg: "bg-accent/20 text-accent-light", label: "M" },
-    transcript_update: { bg: "bg-accent/20 text-accent-light", label: "S" },
-    bot_spoke: { bg: "bg-success/20 text-success", label: "B" },
-  };
-  const { bg, label } = iconMap[type] ?? {
-    bg: "bg-muted/20 text-muted",
-    label: "?",
-  };
-  return (
-    <span
-      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${bg}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function EnvRow({
-  ready,
-  name,
-  description,
-}: {
-  ready: boolean;
-  name: string;
-  description: string;
-}) {
-  return (
-    <li className="flex items-center gap-2">
-      <span className={`text-base ${ready ? "text-success" : "text-danger"}`}>
-        {ready ? "\u2713" : "\u2717"}
-      </span>
-      <code className="font-mono text-xs text-accent-light">{name}</code>
-      <span className="text-muted/60">&mdash; {description}</span>
-    </li>
-  );
-}
-
-function Step({ n, text }: { n: number; text: string }) {
-  return (
-    <li className="flex gap-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-light">
-        {n}
-      </span>
-      <span>{text}</span>
-    </li>
   );
 }

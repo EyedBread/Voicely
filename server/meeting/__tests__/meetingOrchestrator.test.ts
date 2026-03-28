@@ -1,3 +1,4 @@
+import { EventEmitter } from "events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MeetingBotStatus } from "../types";
 
@@ -45,7 +46,7 @@ vi.mock("../outputMediaHub.js", () => ({
 
 vi.mock("../../gemini/liveClient.js", () => ({
   GeminiLiveSession: class {
-    private emitter = new (require("events").EventEmitter)();
+    private emitter = new EventEmitter();
     connect = vi.fn(async () => {
       this.emitter.emit("connected");
     });
