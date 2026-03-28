@@ -1,5 +1,7 @@
 import express from "express";
 import { createServer } from "http";
+import type { IncomingMessage } from "http";
+import type WebSocket from "ws";
 import { WebSocketServer } from "ws";
 import { config, validateConfig, isConfigured } from "./config";
 import twilioWebhooks from "./twilio/webhooks";
@@ -14,9 +16,43 @@ const startTime = Date.now();
 
 const app = express();
 
+function summarizeUpgradeRequest(req: IncomingMessage) {
+  return {
+    method: req.method,
+    url: req.url,
+    host: req.headers.host,
+    origin: req.headers.origin ?? "none",
+    userAgent: req.headers["user-agent"] ?? "unknown",
+    upgrade: req.headers.upgrade ?? "none",
+    connection: req.headers.connection ?? "none",
+    secWebSocketVersion: req.headers["sec-websocket-version"] ?? "none",
+    secWebSocketExtensions: req.headers["sec-websocket-extensions"] ?? "none",
+    secWebSocketProtocol: req.headers["sec-websocket-protocol"] ?? "none",
+    xForwardedFor: req.headers["x-forwarded-for"] ?? "none",
+  };
+}
+
 // Parse request bodies for Twilio webhooks
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+app.use((req, res, next) => {
+  if (req.path.startsWith("/twiml") || req.path === "/call-status") {
+    console.log(
+      `[HTTP] ${req.method} ${req.path} query=${JSON.stringify(req.query)} bodyKeys=${Object.keys(req.body ?? {}).join(",") || "none"}`,
+    );
+  }
+
+  res.on("finish", () => {
+    if (req.path.startsWith("/twiml") || req.path === "/call-status") {
+      console.log(
+        `[HTTP] ${req.method} ${req.path} -> ${res.statusCode} contentType=${res.getHeader("content-type") ?? "none"}`,
+      );
+    }
+  });
+
+  next();
+});
 
 // CORS for Next.js dashboard
 app.use((_req, res, next) => {
@@ -167,8 +203,16 @@ app.get("/meetings/:botId/transcript", (req, res) => {
 // Create HTTP server and WebSocket server
 const server = createServer(app);
 
+server.on("upgrade", (req) => {
+  console.log(`[Upgrade] ${JSON.stringify(summarizeUpgradeRequest(req))}`);
+});
+
 // Inbound call media stream
-const wssInbound = new WebSocketServer({ server, path: "/media-stream" });
+const wssInbound = new WebSocketServer({
+  server,
+  path: "/media-stream",
+  perMessageDeflate: false,
+});
 
 wssInbound.on("connection", (ws) => {
   console.log("[Bridge] New inbound WebSocket connection on /media-stream");
@@ -180,10 +224,28 @@ wssInbound.on("connection", (ws) => {
 });
 
 // Outbound call media stream
-const wssOutbound = new WebSocketServer({ server, path: "/media-stream-outbound" });
+const wssOutbound = new WebSocketServer({
+  server,
+  path: "/media-stream-outbound",
+  perMessageDeflate: false,
+});
 
-wssOutbound.on("connection", (ws) => {
-  console.log("[Bridge] New outbound WebSocket connection on /media-stream-outbound");
+const wssRecallRealtime = new WebSocketServer({
+  server,
+  path: "/webhooks/recall/realtime",
+  perMessageDeflate: false,
+});
+
+wssInbound.on("headers", (_headers, req) => {
+  console.log(
+    `[Bridge] Inbound upgrade accepted path=/media-stream request=${JSON.stringify(summarizeUpgradeRequest(req))}`,
+  );
+});
+
+wssOutbound.on("connection", (ws, req) => {
+  console.log(
+    `[Bridge] New outbound WebSocket connection on /media-stream-outbound remote=${req.socket.remoteAddress ?? "unknown"} extensions=${ws.extensions || "none"}`,
+  );
 
   // Twilio sends the custom parameters in the 'start' message.
   // We need to listen for the first message to extract them, then hand off.
@@ -196,6 +258,7 @@ wssOutbound.on("connection", (ws) => {
     if (initialized) return;
 
     try {
+      console.log(`[Bridge] Outbound first message bytes=${data.toString().length}`);
       const msg = JSON.parse(data.toString());
       if (msg.event === "start") {
         initialized = true;
@@ -220,11 +283,50 @@ wssOutbound.on("connection", (ws) => {
         });
 
         // Replay the start message for the TwilioMediaStream handler
+        console.log("[Bridge] Replaying outbound Twilio start message into orchestrator");
         ws.emit("message", data);
       }
     } catch {
       // Not a valid JSON message yet, ignore
     }
+  });
+});
+
+wssOutbound.on("headers", (_headers, req) => {
+  console.log(
+    `[Bridge] Outbound upgrade accepted path=/media-stream-outbound request=${JSON.stringify(summarizeUpgradeRequest(req))}`,
+  );
+});
+
+wssRecallRealtime.on("headers", (_headers, req) => {
+  console.log(
+    `[Bridge] Recall realtime upgrade accepted path=/webhooks/recall/realtime request=${JSON.stringify(summarizeUpgradeRequest(req))}`,
+  );
+});
+
+wssRecallRealtime.on("connection", (ws: WebSocket, req) => {
+  console.log(
+    `[Bridge] New Recall realtime WebSocket connection remote=${req.socket.remoteAddress ?? "unknown"} extensions=${ws.extensions || "none"}`,
+  );
+
+  ws.on("message", (rawData) => {
+    try {
+      const event = JSON.parse(rawData.toString());
+      meetingOrchestrator.handleRealtimeEvent(event);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[Bridge] Failed to parse Recall realtime message: ${message}`);
+    }
+  });
+
+  ws.on("close", (code, reason) => {
+    console.log(
+      `[Bridge] Recall realtime WebSocket closed code=${code} reason=${reason.toString() || "none"}`,
+    );
+  });
+
+  ws.on("error", (err) => {
+    console.error(`[Bridge] Recall realtime WebSocket error: ${err.message}`);
   });
 });
 
@@ -264,9 +366,11 @@ function shutdown(signal: string) {
   callManager.closeAll();
   wssInbound.close(() => {
     wssOutbound.close(() => {
-      server.close(() => {
-        console.log("[Bridge] Server closed");
-        process.exit(0);
+      wssRecallRealtime.close(() => {
+        server.close(() => {
+          console.log("[Bridge] Server closed");
+          process.exit(0);
+        });
       });
     });
   });

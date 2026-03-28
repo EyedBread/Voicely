@@ -9,8 +9,6 @@ import { getSystemPrompt, type CallContext } from "./gemini/prompts";
 import type { CallSession, CallStatus, CallDirection } from "../shared/types";
 import { emitServerEvent } from "./events";
 
-// Minimum audio chunk size (in bytes) to send to Gemini.
-// Gemini Live API works best with chunks of at least ~4000 bytes of PCM 16kHz.
 const MIN_AUDIO_CHUNK_BYTES = 4000;
 
 export interface CallOrchestratorOptions {
@@ -61,31 +59,40 @@ export class CallOrchestrator extends EventEmitter {
   private wireUpTwilio(): void {
     this.twilioStream.on("start", ({ callSid }) => {
       this.session.twilioCallSid = callSid;
-      console.log(`[Orchestrator] Call started — callSid: ${callSid}, sessionId: ${this.session.id}`);
+      console.log(
+        `[Orchestrator] Call started callSid=${callSid} sessionId=${this.session.id} direction=${this.session.direction} purpose=${JSON.stringify(this.session.purpose ?? "")}`,
+      );
 
-      // Connect to Gemini once Twilio stream is ready
       this.geminiSession.connect().catch((err) => {
-        console.error(`[Orchestrator] Failed to connect to Gemini: ${err.message}`);
+        console.error(
+          `[Orchestrator] Failed to connect to Gemini: ${err.message}`,
+        );
         this.emit("error", err);
         this.cleanup();
       });
     });
 
     this.twilioStream.on("audio", (base64MulawAudio: string) => {
-      // Convert Twilio audio (mulaw 8kHz) → Gemini (PCM 16kHz) and send
       const pcm16k = twilioToGemini(base64MulawAudio);
+      console.log(
+        `[Orchestrator] Twilio audio received base64Length=${base64MulawAudio.length} pcmBytes=${pcm16k.length} bufferedBefore=${this.audioBuffer.length}`,
+      );
 
-      // Buffer audio to meet minimum chunk size for Gemini
       this.audioBuffer = Buffer.concat([this.audioBuffer, pcm16k]);
 
       if (this.audioBuffer.length >= MIN_AUDIO_CHUNK_BYTES) {
+        console.log(
+          `[Orchestrator] Sending buffered audio to Gemini bytes=${this.audioBuffer.length}`,
+        );
         this.geminiSession.sendAudio(this.audioBuffer);
         this.audioBuffer = Buffer.alloc(0);
       }
     });
 
     this.twilioStream.on("stop", () => {
-      console.log(`[Orchestrator] Twilio stream stopped for call ${this.session.twilioCallSid}`);
+      console.log(
+        `[Orchestrator] Twilio stream stopped for call ${this.session.twilioCallSid}`,
+      );
       this.cleanup();
     });
 
@@ -98,18 +105,22 @@ export class CallOrchestrator extends EventEmitter {
   private wireUpGemini(): void {
     this.geminiSession.on("connected", () => {
       this.updateStatus("active");
-      console.log(`[Orchestrator] Gemini connected — call is now active`);
+      console.log("[Orchestrator] Gemini connected; call is now active");
 
-      // Flush any buffered audio
       if (this.audioBuffer.length > 0) {
+        console.log(
+          `[Orchestrator] Flushing buffered audio to Gemini on connect bytes=${this.audioBuffer.length}`,
+        );
         this.geminiSession.sendAudio(this.audioBuffer);
         this.audioBuffer = Buffer.alloc(0);
       }
     });
 
     this.geminiSession.onAudio((pcm16k: Buffer) => {
-      // Convert Gemini audio (PCM 16kHz) → Twilio (mulaw 8kHz base64)
       const base64Mulaw = geminiToTwilio(pcm16k);
+      console.log(
+        `[Orchestrator] Gemini audio received pcmBytes=${pcm16k.length} twilioBase64Length=${base64Mulaw.length}`,
+      );
       this.twilioStream.sendAudio(base64Mulaw);
     });
 
@@ -120,7 +131,7 @@ export class CallOrchestrator extends EventEmitter {
     this.geminiSession.onToolCall((toolCall) => {
       const calls = toolCall.functionCalls ?? [];
       console.log(
-        `[Orchestrator] Tool call(s) received: ${calls.map((fc) => fc.name).join(", ")}`
+        `[Orchestrator] Tool call(s) received: ${calls.map((fc) => fc.name).join(", ")}`,
       );
 
       for (const fc of calls) {
@@ -136,18 +147,23 @@ export class CallOrchestrator extends EventEmitter {
           this.geminiSession.sendToolResponse(responses);
         })
         .catch((err) => {
-          console.error(`[Orchestrator] Tool execution failed: ${err.message}`);
+          console.error(
+            `[Orchestrator] Tool execution failed: ${err.message}`,
+          );
           this.emit("error", err);
         });
     });
 
     this.geminiSession.onInterrupted(() => {
-      console.log(`[Orchestrator] Gemini interrupted (barge-in) for call ${this.session.twilioCallSid}`);
+      console.log(
+        `[Orchestrator] Gemini interrupted for call ${this.session.twilioCallSid}`,
+      );
     });
 
     this.geminiSession.on("disconnected", () => {
-      console.log(`[Orchestrator] Gemini disconnected for call ${this.session.twilioCallSid}`);
-      // If Gemini disconnects and we can't reconnect, end the call
+      console.log(
+        `[Orchestrator] Gemini disconnected for call ${this.session.twilioCallSid}`,
+      );
       if (this.session.status === "active") {
         this.cleanup();
       }
@@ -171,7 +187,9 @@ export class CallOrchestrator extends EventEmitter {
     if (this.cleanedUp) return;
     this.cleanedUp = true;
 
-    console.log(`[Orchestrator] Cleaning up call ${this.session.twilioCallSid || this.session.id}`);
+    console.log(
+      `[Orchestrator] Cleaning up call ${this.session.twilioCallSid || this.session.id} status=${this.session.status} bufferedAudio=${this.audioBuffer.length}`,
+    );
 
     this.geminiSession.close();
     this.twilioStream.close();

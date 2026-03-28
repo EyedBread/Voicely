@@ -68,7 +68,7 @@ export const config: ServerConfig = {
     apiKey: getEnv("RECALL_API_KEY"),
     apiBaseUrl: getEnv(
       "RECALL_API_BASE_URL",
-      "https://us-west-2.recall.ai/api/v1"
+      "https://eu-central-1.recall.ai/api/v1"
     ),
   },
   server: {

@@ -1,9 +1,9 @@
 import { config } from "../config.js";
+import { createSilentMp3Base64, encodePcmToMp3Base64 } from "../audio/mp3.js";
 import type { RecallBotConfig, RecallBotResponse } from "./types.js";
 
-// ---------------------------------------------------------------------------
-// Recall.ai REST API client
-// ---------------------------------------------------------------------------
+const REALTIME_AUDIO_WEBSOCKET_PATH = "/webhooks/recall/realtime";
+const SILENT_AUDIO_SAMPLE_RATE = 24000;
 
 function apiUrl(path: string): string {
   const base = config.recall.apiBaseUrl.replace(/\/+$/, "");
@@ -19,7 +19,7 @@ function headers(): Record<string, string> {
 
 async function recallFetch<T>(
   path: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const url = apiUrl(path);
   const res = await fetch(url, {
@@ -30,11 +30,10 @@ async function recallFetch<T>(
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `Recall.ai API error ${res.status} ${res.statusText}: ${body}`
+      `Recall.ai API error ${res.status} ${res.statusText}: ${body}`,
     );
   }
 
-  // 204 No Content — return empty object
   if (res.status === 204) {
     return {} as T;
   }
@@ -42,34 +41,45 @@ async function recallFetch<T>(
   return res.json() as Promise<T>;
 }
 
-// ---------------------------------------------------------------------------
-// Bot lifecycle
-// ---------------------------------------------------------------------------
+function getRealtimeWebsocketUrl(): string {
+  const base = config.server.publicUrl.replace(/^https:\/\//, "wss://");
+  return `${base.replace(/\/+$/, "")}${REALTIME_AUDIO_WEBSOCKET_PATH}`;
+}
 
-/**
- * Create a Recall.ai bot and send it to join a meeting.
- */
 export async function createBot(
   meetingUrl: string,
-  botName?: string
+  botName?: string,
 ): Promise<RecallBotResponse> {
-  const webhookBase = config.server.publicUrl.replace(/\/+$/, "");
-
   const body: RecallBotConfig = {
     meeting_url: meetingUrl,
     bot_name: botName ?? "Voisli Assistant",
-    real_time_transcription: {
-      destination_url: `${webhookBase}/webhooks/recall/transcript`,
+    recording_config: {
+      audio_mixed_raw: {},
+      realtime_endpoints: [
+        {
+          type: "websocket",
+          url: getRealtimeWebsocketUrl(),
+          events: [
+            "audio_mixed_raw.data",
+            "participant_events.speech_on",
+            "participant_events.speech_off",
+          ],
+        },
+      ],
     },
-    transcription_options: {
-      provider: "meeting_captions",
+    automatic_audio_output: {
+      in_call_recording: {
+        data: {
+          kind: "mp3",
+          b64_data: createSilentMp3Base64(250, SILENT_AUDIO_SAMPLE_RATE),
+        },
+      },
     },
-    recording_mode: "audio_only",
     chat: {
       on_bot_join: {
         send_to: "everyone",
         message:
-          "Hi! I'm Voisli, an AI meeting assistant. Mention my name if you have a question.",
+          "Hi! I'm Voisli, an AI meeting assistant. Say 'Hey Voisli' if you want me to help.",
       },
     },
   };
@@ -80,53 +90,40 @@ export async function createBot(
   });
 }
 
-/**
- * Remove a bot from a meeting (makes it leave).
- */
 export async function removeBot(botId: string): Promise<void> {
   await recallFetch<void>(`/bot/${botId}/leave_call/`, {
     method: "POST",
   });
 }
 
-/**
- * Get the current status of a bot.
- */
-export async function getBotStatus(
-  botId: string
-): Promise<RecallBotResponse> {
+export async function getBotStatus(botId: string): Promise<RecallBotResponse> {
   return recallFetch<RecallBotResponse>(`/bot/${botId}/`);
 }
 
-/**
- * Send audio data to the meeting so the bot speaks out loud.
- * Uses Recall.ai's real-time output API.
- */
 export async function sendAudioToMeeting(
   botId: string,
-  audioData: Buffer
+  audioData: Buffer,
+  sampleRate = SILENT_AUDIO_SAMPLE_RATE,
 ): Promise<void> {
-  const url = apiUrl(`/bot/${botId}/output_audio/`);
-  const res = await fetch(url, {
+  const b64_data = encodePcmToMp3Base64(audioData, sampleRate);
+
+  const res = await fetch(apiUrl(`/bot/${botId}/output_audio/`), {
     method: "POST",
-    headers: {
-      Authorization: `Token ${config.recall.apiKey}`,
-      "Content-Type": "audio/raw",
-    },
-    body: new Uint8Array(audioData),
+    headers: headers(),
+    body: JSON.stringify({
+      kind: "mp3",
+      b64_data,
+    }),
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `Recall.ai output audio error ${res.status} ${res.statusText}: ${body}`
+      `Recall.ai output audio error ${res.status} ${res.statusText}: ${body}`,
     );
   }
 }
 
-/**
- * List all currently active bots.
- */
 export async function listActiveBots(): Promise<RecallBotResponse[]> {
   const data = await recallFetch<{ results: RecallBotResponse[] }>("/bot/");
   return data.results;

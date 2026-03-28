@@ -12,10 +12,13 @@ import { config } from "@server/config";
 import type { GeminiConfig } from "../../shared/types";
 
 const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
-  model: "gemini-live-2.5-flash-preview",
+  model: "gemini-live-3.1-flash-live-preview",
   systemInstruction:
     "You are Voisli, a helpful AI voice assistant. You help users make phone calls, reservations, and manage their schedule. Be conversational, concise, and friendly. Keep responses short since this is a voice conversation.",
   voice: "Aoede",
+  responseModalities: [Modality.AUDIO],
+  inputAudioTranscription: true,
+  outputAudioTranscription: true,
 };
 
 const AUDIO_MIME_TYPE = "audio/pcm;rate=16000";
@@ -26,8 +29,11 @@ const RECONNECT_DELAY_MS = 1000;
 export interface GeminiLiveSessionEvents {
   audio: (pcmAudio: Buffer) => void;
   text: (text: string) => void;
+  inputTranscription: (text: string) => void;
+  outputTranscription: (text: string) => void;
   toolCall: (toolCall: LiveServerToolCall) => void;
   interrupted: () => void;
+  turnComplete: () => void;
   connected: () => void;
   disconnected: () => void;
   error: (error: Error) => void;
@@ -59,7 +65,10 @@ export class GeminiLiveSession extends EventEmitter {
     this.closing = false;
 
     const liveConfig: LiveConnectConfig = {
-      responseModalities: [Modality.AUDIO],
+      responseModalities:
+        this.geminiConfig.responseModalities?.map((modality) =>
+          modality === "AUDIO" ? Modality.AUDIO : Modality.TEXT,
+        ) ?? [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
@@ -68,8 +77,12 @@ export class GeminiLiveSession extends EventEmitter {
         },
       },
       systemInstruction: this.geminiConfig.systemInstruction,
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+      inputAudioTranscription: this.geminiConfig.inputAudioTranscription
+        ? {}
+        : undefined,
+      outputAudioTranscription: this.geminiConfig.outputAudioTranscription
+        ? {}
+        : undefined,
     };
 
     if (this.geminiConfig.tools && this.geminiConfig.tools.length > 0) {
@@ -86,7 +99,7 @@ export class GeminiLiveSession extends EventEmitter {
 
     try {
       console.log(
-        `[Gemini] Connecting to model: ${this.geminiConfig.model}...`
+        `[Gemini] Connecting to model: ${this.geminiConfig.model}...`,
       );
 
       this.session = await this.genAI.live.connect({
@@ -104,7 +117,10 @@ export class GeminiLiveSession extends EventEmitter {
           },
           onerror: (e: ErrorEvent) => {
             console.error(`[Gemini] WebSocket error: ${e.message ?? e}`);
-            this.emit("error", new Error(`Gemini WebSocket error: ${e.message ?? "unknown"}`));
+            this.emit(
+              "error",
+              new Error(`Gemini WebSocket error: ${e.message ?? "unknown"}`),
+            );
           },
           onclose: () => {
             const wasConnected = this.connected;
@@ -122,8 +138,7 @@ export class GeminiLiveSession extends EventEmitter {
         },
       });
     } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error(String(err));
+      const error = err instanceof Error ? err : new Error(String(err));
       console.error(`[Gemini] Failed to connect: ${error.message}`);
       this.emit("error", error);
       throw error;
@@ -160,7 +175,7 @@ export class GeminiLiveSession extends EventEmitter {
     }
 
     console.log(
-      `[Gemini] Sending tool responses: ${functionResponses.map((r) => r.name).join(", ")}`
+      `[Gemini] Sending tool responses: ${functionResponses.map((r) => r.name).join(", ")}`,
     );
 
     this.session.sendToolResponse({ functionResponses });
@@ -238,7 +253,10 @@ export class GeminiLiveSession extends EventEmitter {
       // Extract audio data from model turn
       if (content.modelTurn?.parts) {
         for (const part of content.modelTurn.parts) {
-          if (part.inlineData?.data && part.inlineData.mimeType?.startsWith("audio/")) {
+          if (
+            part.inlineData?.data &&
+            part.inlineData.mimeType?.startsWith("audio/")
+          ) {
             const audioBuffer = Buffer.from(part.inlineData.data, "base64");
             this.emit("audio", audioBuffer);
           }
@@ -247,16 +265,19 @@ export class GeminiLiveSession extends EventEmitter {
 
       // Handle input transcription
       if (content.inputTranscription?.text) {
+        this.emit("inputTranscription", content.inputTranscription.text);
         this.emit("text", `[user] ${content.inputTranscription.text}`);
       }
 
       // Handle output transcription
       if (content.outputTranscription?.text) {
+        this.emit("outputTranscription", content.outputTranscription.text);
         this.emit("text", `[assistant] ${content.outputTranscription.text}`);
       }
 
       if (content.turnComplete) {
         console.log("[Gemini] Turn complete");
+        this.emit("turnComplete");
       }
 
       return;
@@ -265,7 +286,7 @@ export class GeminiLiveSession extends EventEmitter {
     // Handle tool calls
     if (message.toolCall) {
       console.log(
-        `[Gemini] Tool call received: ${message.toolCall.functionCalls?.map((fc) => fc.name).join(", ")}`
+        `[Gemini] Tool call received: ${message.toolCall.functionCalls?.map((fc) => fc.name).join(", ")}`,
       );
       this.emit("toolCall", message.toolCall);
       return;
@@ -280,7 +301,7 @@ export class GeminiLiveSession extends EventEmitter {
     // Handle go away (server disconnecting)
     if (message.goAway) {
       console.warn(
-        `[Gemini] Server going away, time left: ${message.goAway.timeLeft}`
+        `[Gemini] Server going away, time left: ${message.goAway.timeLeft}`,
       );
       return;
     }
@@ -290,12 +311,9 @@ export class GeminiLiveSession extends EventEmitter {
     if (this.closing || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error(
-          `[Gemini] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`
+          `[Gemini] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`,
         );
-        this.emit(
-          "error",
-          new Error("Max reconnect attempts reached")
-        );
+        this.emit("error", new Error("Max reconnect attempts reached"));
       }
       return;
     }
@@ -303,7 +321,7 @@ export class GeminiLiveSession extends EventEmitter {
     this.reconnectAttempts++;
     const delay = RECONNECT_DELAY_MS * this.reconnectAttempts;
     console.log(
-      `[Gemini] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`
+      `[Gemini] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, delay));

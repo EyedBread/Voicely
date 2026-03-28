@@ -1,22 +1,60 @@
 import { EventEmitter } from "events";
+import type { LiveServerToolCall } from "@google/genai";
 import type {
   MeetingSession,
   MeetingBotStatus,
   TranscriptEntry,
+  MeetingAudioSessionState,
+  RecallRealtimeEvent,
 } from "./types.js";
 import { MeetingContextManager } from "./contextManager.js";
-import { MeetingAI } from "./meetingAI.js";
+import { GeminiLiveSession } from "../gemini/liveClient.js";
 import * as recallClient from "./recallClient.js";
-import { onTranscript, onStatusChange } from "./webhooks.js";
+import { onStatusChange } from "./webhooks.js";
 import { emitServerEvent } from "../events.js";
+import { executeToolCalls } from "../tools/executor.js";
+import {
+  checkCalendarAvailability,
+  createCalendarEvent,
+  searchBusiness,
+} from "../tools/schema.js";
+import { MEETING_ASSISTANT_PROMPT } from "../gemini/prompts.js";
 
-// ---------------------------------------------------------------------------
-// Meeting orchestrator — manages the full lifecycle of a meeting session:
-//   join → listen → detect questions → respond via audio → leave
-// ---------------------------------------------------------------------------
-
-/** Minimum seconds between bot responses to avoid dominating the meeting. */
 const DEFAULT_COOLDOWN_MS = 15_000;
+const WAKE_WINDOW_MS = 20_000;
+const BOT_AUDIO_SAMPLE_RATE = 24_000;
+
+function meetingPrompt(): string {
+  return [
+    MEETING_ASSISTANT_PROMPT,
+    "You are listening to live meeting audio.",
+    "Only respond when directly addressed with 'Voisli', 'Hey Voisli', or 'Hi Voisli'.",
+    "If nobody addresses you directly, stay silent and do not use any tools.",
+    "Keep spoken responses concise and useful.",
+  ].join(" ");
+}
+
+function containsWakeWord(text: string): boolean {
+  const normalized = text.toLowerCase();
+  return (
+    /\bhey\s+voisli\b/.test(normalized) ||
+    /\bhi\s+voisli\b/.test(normalized) ||
+    /\bvoisli\b/.test(normalized)
+  );
+}
+
+function now(): number {
+  return Date.now();
+}
+
+function resetTurnState(state: MeetingAudioSessionState): void {
+  state.currentTurnActive = false;
+  state.currentTurnAccepted = false;
+  state.currentTurnHadWakeWord = false;
+  state.currentTurnInputTexts = [];
+  state.currentTurnOutputTexts = [];
+  state.currentTurnOutputAudio = [];
+}
 
 export interface MeetingOrchestratorEvents {
   statusChange: (session: MeetingSession) => void;
@@ -32,34 +70,19 @@ export interface MeetingOrchestratorOptions {
 export class MeetingOrchestrator extends EventEmitter {
   private sessions: Map<string, MeetingSession> = new Map();
   private contextManagers: Map<string, MeetingContextManager> = new Map();
-  private ai: MeetingAI;
+  private audioSessions: Map<string, MeetingAudioSessionState> = new Map();
   private cooldownMs: number;
-  /** Tracks when the bot last responded per session to enforce cooldown. */
   private lastResponseTime: Map<string, number> = new Map();
-  /** Prevents concurrent response generation per session. */
-  private responding: Set<string> = new Set();
 
   constructor(options: MeetingOrchestratorOptions = {}) {
     super();
-    this.ai = new MeetingAI();
     this.cooldownMs = options.cooldownMs ?? DEFAULT_COOLDOWN_MS;
-
-    // Wire up global webhook listeners
-    onTranscript((botId, entry) => this.handleTranscript(botId, entry));
     onStatusChange((botId, status) => this.handleStatusChange(botId, status));
   }
 
-  // -------------------------------------------------------------------------
-  // Public API
-  // -------------------------------------------------------------------------
-
-  /**
-   * Create a Recall.ai bot and send it to join a meeting.
-   * Initializes the context manager and AI brain for this session.
-   */
   async joinMeeting(
     meetingUrl: string,
-    botName?: string
+    botName?: string,
   ): Promise<MeetingSession> {
     const botResponse = await recallClient.createBot(meetingUrl, botName);
 
@@ -74,9 +97,10 @@ export class MeetingOrchestrator extends EventEmitter {
 
     this.sessions.set(botResponse.id, session);
     this.contextManagers.set(botResponse.id, new MeetingContextManager());
+    this.createAudioSession(botResponse.id);
 
     console.log(
-      `[MeetingOrchestrator] Bot ${botResponse.id} created for meeting: ${meetingUrl}`
+      `[MeetingOrchestrator] Bot ${botResponse.id} created for meeting: ${meetingUrl}`,
     );
 
     emitServerEvent("meeting_joined", {
@@ -88,9 +112,6 @@ export class MeetingOrchestrator extends EventEmitter {
     return { ...session };
   }
 
-  /**
-   * Remove a bot from a meeting (makes it leave).
-   */
   async leaveMeeting(botId: string): Promise<void> {
     const session = this.sessions.get(botId);
     if (!session) {
@@ -100,83 +121,262 @@ export class MeetingOrchestrator extends EventEmitter {
     try {
       await recallClient.removeBot(botId);
     } catch (err) {
-      // Bot may already have left — log but don't throw
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(
-        `[MeetingOrchestrator] Error removing bot ${botId}: ${msg}`
-      );
+      console.warn(`[MeetingOrchestrator] Error removing bot ${botId}: ${msg}`);
     }
 
     this.updateSessionStatus(botId, "done");
     this.cleanupSession(botId);
   }
 
-  /**
-   * Get the current state of a meeting session.
-   */
   getSession(botId: string): MeetingSession | undefined {
     const session = this.sessions.get(botId);
     return session ? { ...session } : undefined;
   }
 
-  /**
-   * Get all meeting sessions (active and past).
-   */
   getAllSessions(): MeetingSession[] {
     return Array.from(this.sessions.values()).map((s) => ({ ...s }));
   }
 
-  /**
-   * Get the full transcript for a meeting session.
-   */
   getTranscript(botId: string): TranscriptEntry[] {
     const cm = this.contextManagers.get(botId);
     return cm ? cm.getTranscript() : [];
   }
 
-  /**
-   * Get an AI-generated summary for a meeting session.
-   */
   getSummary(botId: string): string {
     const cm = this.contextManagers.get(botId);
     return cm ? cm.getSummary() : "No session found.";
   }
 
-  // -------------------------------------------------------------------------
-  // Webhook event handlers
-  // -------------------------------------------------------------------------
-
-  private handleTranscript(botId: string, entry: TranscriptEntry): void {
-    const cm = this.contextManagers.get(botId);
-    if (!cm) return;
-
-    cm.addTranscriptEntry(entry);
-
-    // Update the session's context window snapshot
-    const session = this.sessions.get(botId);
-    if (session) {
-      session.participants = cm.getParticipants();
-      session.contextWindow = cm.getTranscript();
+  handleRealtimeEvent(event: RecallRealtimeEvent): void {
+    const botId = event.data.bot.id;
+    const state = this.audioSessions.get(botId);
+    if (!state) {
+      return;
     }
 
-    emitServerEvent("transcript_update", {
-      botId,
-      speaker: entry.speaker,
-      text: entry.text,
-      timestamp: entry.timestamp instanceof Date ? entry.timestamp.toISOString() : String(entry.timestamp),
+    switch (event.event) {
+      case "audio_mixed_raw.data": {
+        state.recallAudioConnected = true;
+        if (now() < state.suppressIncomingAudioUntil) {
+          return;
+        }
+        const audio = Buffer.from(event.data.data.b64_data, "base64");
+        state.currentTurnActive = true;
+        state.geminiSession.sendAudio(audio);
+        break;
+      }
+
+      case "participant_events.speech_on":
+      case "participant_events.speech_off": {
+        const participantName = event.data.participant?.name;
+        if (!participantName) {
+          return;
+        }
+        const cm = this.contextManagers.get(botId);
+        const session = this.sessions.get(botId);
+        if (!cm || !session) {
+          return;
+        }
+        const participants = cm.getParticipants();
+        if (!participants.some((p) => p.name === participantName)) {
+          cm.addTranscriptEntry({
+            speaker: participantName,
+            text: event.event === "participant_events.speech_on" ? "[speaking]" : "[stopped speaking]",
+            timestamp: new Date(),
+          });
+          session.participants = cm.getParticipants();
+          session.contextWindow = cm.getTranscript();
+        }
+        break;
+      }
+    }
+  }
+
+  private createAudioSession(botId: string): void {
+    const geminiSession = new GeminiLiveSession({
+      model: "gemini-2.5-flash-native-audio-preview-12-2025",
+      systemInstruction: meetingPrompt(),
+      tools: [checkCalendarAvailability, createCalendarEvent, searchBusiness],
+      responseModalities: ["AUDIO"],
+      inputAudioTranscription: true,
+      outputAudioTranscription: true,
     });
 
-    // Check if the bot was mentioned / a question was directed at it
-    if (cm.detectBotMention(entry)) {
-      this.handleBotMention(botId, entry).catch((err) => {
-        const error =
-          err instanceof Error ? err : new Error(String(err));
-        console.error(
-          `[MeetingOrchestrator] Error handling mention in ${botId}: ${error.message}`
-        );
-        this.emit("error", botId, error);
+    const state: MeetingAudioSessionState = {
+      botId,
+      geminiSession,
+      recallAudioConnected: false,
+      geminiConnected: false,
+      wakeActiveUntil: 0,
+      suppressIncomingAudioUntil: 0,
+      currentTurnActive: false,
+      currentTurnAccepted: false,
+      currentTurnHadWakeWord: false,
+      currentTurnInputTexts: [],
+      currentTurnOutputTexts: [],
+      currentTurnOutputAudio: [],
+      speaking: false,
+    };
+
+    this.audioSessions.set(botId, state);
+    this.wireGeminiSession(botId, state);
+    geminiSession.connect().catch((err) => {
+      this.emit("error", botId, err instanceof Error ? err : new Error(String(err)));
+    });
+  }
+
+  private wireGeminiSession(
+    botId: string,
+    state: MeetingAudioSessionState,
+  ): void {
+    state.geminiSession.on("connected", () => {
+      state.geminiConnected = true;
+      console.log(`[MeetingOrchestrator] Gemini Live connected for bot ${botId}`);
+    });
+
+    state.geminiSession.on("disconnected", () => {
+      state.geminiConnected = false;
+      console.log(`[MeetingOrchestrator] Gemini Live disconnected for bot ${botId}`);
+    });
+
+    state.geminiSession.on("inputTranscription", (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || now() < state.suppressIncomingAudioUntil) {
+        return;
+      }
+
+      state.currentTurnActive = true;
+      state.currentTurnInputTexts.push(trimmed);
+
+      const explicitWake = containsWakeWord(trimmed);
+      const withinWakeWindow = now() < state.wakeActiveUntil;
+      const cooldownActive =
+        !explicitWake &&
+        !withinWakeWindow &&
+        now() - (this.lastResponseTime.get(botId) ?? 0) < this.cooldownMs;
+
+      if (explicitWake) {
+        state.currentTurnHadWakeWord = true;
+        state.currentTurnAccepted = true;
+        state.wakeActiveUntil = now() + WAKE_WINDOW_MS;
+      } else if (withinWakeWindow && !cooldownActive) {
+        state.currentTurnAccepted = true;
+      }
+    });
+
+    state.geminiSession.on("outputTranscription", (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return;
+      }
+      if (state.currentTurnAccepted) {
+        state.currentTurnOutputTexts.push(trimmed);
+      }
+    });
+
+    state.geminiSession.onAudio((audio: Buffer) => {
+      if (state.currentTurnAccepted) {
+        state.currentTurnOutputAudio.push(audio);
+      }
+    });
+
+    state.geminiSession.on("toolCall", (toolCall: LiveServerToolCall) => {
+      this.handleToolCall(botId, toolCall).catch((err) => {
+        this.emit("error", botId, err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+
+    state.geminiSession.on("turnComplete", () => {
+      this.finishTurn(botId).catch((err) => {
+        this.emit("error", botId, err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+
+    state.geminiSession.on("error", (err: Error) => {
+      console.error(`[MeetingOrchestrator] Gemini error for ${botId}: ${err.message}`);
+      this.emit("error", botId, err);
+    });
+  }
+
+  private async handleToolCall(
+    botId: string,
+    toolCall: LiveServerToolCall,
+  ): Promise<void> {
+    const state = this.audioSessions.get(botId);
+    if (!state) {
+      return;
+    }
+
+    const calls = toolCall.functionCalls ?? [];
+    if (calls.length === 0) {
+      return;
+    }
+
+    const allowed = state.currentTurnAccepted || now() < state.wakeActiveUntil;
+
+    if (!allowed) {
+      state.geminiSession.sendToolResponse(
+        calls.map((fc) => ({
+          name: fc.name ?? "unknown",
+          response: { ignored: true, reason: "Wake word not detected" },
+        })),
+      );
+      return;
+    }
+
+    const responses = await executeToolCalls(
+      calls.map((fc) => ({
+        name: fc.name ?? "unknown",
+        args: (fc.args as Record<string, unknown>) ?? {},
+      })),
+    );
+    state.geminiSession.sendToolResponse(responses);
+  }
+
+  private async finishTurn(botId: string): Promise<void> {
+    const state = this.audioSessions.get(botId);
+    const cm = this.contextManagers.get(botId);
+    const session = this.sessions.get(botId);
+    if (!state || !cm || !session) {
+      return;
+    }
+
+    const question = state.currentTurnInputTexts.join(" ").trim();
+    const answer = state.currentTurnOutputTexts.join(" ").trim();
+
+    if (question) {
+      cm.addTranscriptEntry({
+        speaker: "Meeting",
+        text: question,
+        timestamp: new Date(),
       });
     }
+
+    if (state.currentTurnAccepted && answer) {
+      cm.addTranscriptEntry({
+        speaker: "Voisli",
+        text: answer,
+        timestamp: new Date(),
+      });
+    }
+
+    session.participants = cm.getParticipants();
+    session.contextWindow = cm.getTranscript();
+
+    if (state.currentTurnAccepted && state.currentTurnOutputAudio.length > 0) {
+      const pcm = Buffer.concat(state.currentTurnOutputAudio);
+      await recallClient.sendAudioToMeeting(botId, pcm, BOT_AUDIO_SAMPLE_RATE);
+      const durationMs = Math.ceil((pcm.length / 2 / BOT_AUDIO_SAMPLE_RATE) * 1000);
+      state.speaking = true;
+      state.suppressIncomingAudioUntil = now() + durationMs + 750;
+      this.lastResponseTime.set(botId, now());
+      this.emit("response", botId, question, answer);
+      emitServerEvent("bot_spoke", { botId, question, answer });
+      state.speaking = false;
+    }
+
+    resetTurnState(state);
   }
 
   private handleStatusChange(botId: string, status: MeetingBotStatus): void {
@@ -190,86 +390,7 @@ export class MeetingOrchestrator extends EventEmitter {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // AI response pipeline
-  // -------------------------------------------------------------------------
-
-  private async handleBotMention(
-    botId: string,
-    entry: TranscriptEntry
-  ): Promise<void> {
-    // Cooldown check
-    const lastTime = this.lastResponseTime.get(botId) ?? 0;
-    if (Date.now() - lastTime < this.cooldownMs) {
-      console.log(
-        `[MeetingOrchestrator] Cooldown active for bot ${botId}, skipping response`
-      );
-      return;
-    }
-
-    // Prevent concurrent responses
-    if (this.responding.has(botId)) {
-      console.log(
-        `[MeetingOrchestrator] Already responding for bot ${botId}, skipping`
-      );
-      return;
-    }
-
-    this.responding.add(botId);
-
-    try {
-      const cm = this.contextManagers.get(botId);
-      if (!cm) return;
-
-      const meetingContext = cm.getContext();
-      const question = entry.text;
-
-      console.log(
-        `[MeetingOrchestrator] Bot ${botId} mentioned — question: "${question}"`
-      );
-
-      // Get text response from AI
-      const answer = await this.ai.handleQuestion(question, meetingContext);
-      console.log(
-        `[MeetingOrchestrator] Bot ${botId} answer: "${answer.substring(0, 100)}..."`
-      );
-
-      // Generate audio from the text response
-      const audioBuffer = await this.ai.generateAudioResponse(answer);
-
-      // Send audio back to the meeting via Recall.ai
-      if (audioBuffer.length > 0) {
-        await recallClient.sendAudioToMeeting(botId, audioBuffer);
-        console.log(
-          `[MeetingOrchestrator] Sent ${audioBuffer.length} bytes of audio to bot ${botId}`
-        );
-      } else {
-        console.warn(
-          `[MeetingOrchestrator] No audio generated for bot ${botId}`
-        );
-      }
-
-      this.lastResponseTime.set(botId, Date.now());
-      this.emit("response", botId, question, answer);
-
-      emitServerEvent("bot_spoke", {
-        botId,
-        question,
-        answer,
-      });
-    } finally {
-      this.responding.delete(botId);
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // Internal helpers
-  // -------------------------------------------------------------------------
-
-  private updateSessionStatus(
-    botId: string,
-    status: MeetingBotStatus
-  ): void {
+  private updateSessionStatus(botId: string, status: MeetingBotStatus): void {
     const session = this.sessions.get(botId);
     if (!session) return;
 
@@ -282,9 +403,11 @@ export class MeetingOrchestrator extends EventEmitter {
   }
 
   private cleanupSession(botId: string): void {
-    // Keep session data for post-meeting reference but stop tracking live state
-    this.responding.delete(botId);
-    // Don't delete from sessions/contextManagers — we need them for summaries
+    const state = this.audioSessions.get(botId);
+    if (state) {
+      state.geminiSession.close();
+      this.audioSessions.delete(botId);
+    }
 
     const session = this.sessions.get(botId);
     if (session) {
@@ -295,5 +418,4 @@ export class MeetingOrchestrator extends EventEmitter {
   }
 }
 
-// Singleton instance
 export const meetingOrchestrator = new MeetingOrchestrator();

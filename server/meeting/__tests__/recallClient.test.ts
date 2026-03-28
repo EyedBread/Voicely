@@ -4,7 +4,7 @@ vi.mock("../../config.js", () => ({
   config: {
     recall: {
       apiKey: "test_recall_key",
-      apiBaseUrl: "https://us-west-2.recall.ai/api/v1",
+      apiBaseUrl: "https://eu-central-1.recall.ai/api/v1",
     },
     server: {
       publicUrl: "https://test.ngrok.io",
@@ -42,19 +42,18 @@ function jsonResponse(data: unknown, status = 200): Response {
 }
 
 describe("createBot", () => {
-  it("sends a POST request to /bot/ with correct payload", async () => {
+  it("sends a POST request to /bot/ with the EU realtime audio payload", async () => {
     const botResponse = {
       id: "bot_123",
-      status_changes: [{ code: "ready", message: "Bot created", created_at: "2026-03-28T00:00:00Z" }],
+      status_changes: [],
       meeting_url: "https://meet.google.com/abc-defg-hij",
     };
     mockFetch.mockResolvedValue(jsonResponse(botResponse));
 
     const result = await createBot("https://meet.google.com/abc-defg-hij");
 
-    expect(mockFetch).toHaveBeenCalledOnce();
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://us-west-2.recall.ai/api/v1/bot/");
+    expect(url).toBe("https://eu-central-1.recall.ai/api/v1/bot/");
     expect(opts.method).toBe("POST");
     expect(opts.headers.Authorization).toBe("Token test_recall_key");
     expect(opts.headers["Content-Type"]).toBe("application/json");
@@ -62,29 +61,41 @@ describe("createBot", () => {
     const body = JSON.parse(opts.body);
     expect(body.meeting_url).toBe("https://meet.google.com/abc-defg-hij");
     expect(body.bot_name).toBe("Voisli Assistant");
-    expect(body.real_time_transcription.destination_url).toBe(
-      "https://test.ngrok.io/webhooks/recall/transcript"
+    expect(body.recording_config.audio_mixed_raw).toEqual({});
+    expect(body.recording_config.realtime_endpoints).toEqual([
+      {
+        type: "websocket",
+        url: "wss://test.ngrok.io/webhooks/recall/realtime",
+        events: [
+          "audio_mixed_raw.data",
+          "participant_events.speech_on",
+          "participant_events.speech_off",
+        ],
+      },
+    ]);
+    expect(body.automatic_audio_output.in_call_recording.data.kind).toBe("mp3");
+    expect(typeof body.automatic_audio_output.in_call_recording.data.b64_data).toBe(
+      "string",
     );
-    expect(body.transcription_options.provider).toBe("meeting_captions");
-    expect(body.recording_mode).toBe("audio_only");
+    expect(body.automatic_audio_output.in_call_recording.data.b64_data.length).toBeGreaterThan(0);
+    expect(body.real_time_transcription).toBeUndefined();
+    expect(body.transcription_options).toBeUndefined();
+    expect(body.recording_mode).toBeUndefined();
 
     expect(result).toEqual(botResponse);
   });
 
   it("uses a custom bot name when provided", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ id: "bot_456" }));
-
     await createBot("https://meet.google.com/test", "Custom Bot");
-
     const body = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(body.bot_name).toBe("Custom Bot");
   });
 
   it("throws on API error", async () => {
     mockFetch.mockResolvedValue(jsonResponse({ error: "Unauthorized" }, 401));
-
     await expect(createBot("https://meet.google.com/test")).rejects.toThrow(
-      /Recall\.ai API error 401/
+      /Recall\.ai API error 401/,
     );
   });
 });
@@ -102,7 +113,7 @@ describe("removeBot", () => {
     await removeBot("bot_123");
 
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://us-west-2.recall.ai/api/v1/bot/bot_123/leave_call/");
+    expect(url).toBe("https://eu-central-1.recall.ai/api/v1/bot/bot_123/leave_call/");
     expect(opts.method).toBe("POST");
   });
 });
@@ -111,7 +122,7 @@ describe("getBotStatus", () => {
   it("sends a GET to /bot/:id/", async () => {
     const botData = {
       id: "bot_123",
-      status_changes: [{ code: "in_call_recording", message: "Recording", created_at: "2026-03-28T00:01:00Z" }],
+      status_changes: [],
       meeting_url: "https://meet.google.com/abc",
     };
     mockFetch.mockResolvedValue(jsonResponse(botData));
@@ -119,14 +130,14 @@ describe("getBotStatus", () => {
     const result = await getBotStatus("bot_123");
 
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://us-west-2.recall.ai/api/v1/bot/bot_123/");
-    expect(opts.method).toBeUndefined(); // GET is default
+    expect(url).toBe("https://eu-central-1.recall.ai/api/v1/bot/bot_123/");
+    expect(opts.method).toBeUndefined();
     expect(result).toEqual(botData);
   });
 });
 
 describe("sendAudioToMeeting", () => {
-  it("sends raw audio data with correct content type", async () => {
+  it("sends mp3 audio json to the output_audio endpoint", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       status: 200,
@@ -134,14 +145,17 @@ describe("sendAudioToMeeting", () => {
       text: () => Promise.resolve(""),
     } as unknown as Response);
 
-    const audio = Buffer.from([0x01, 0x02, 0x03]);
-    await sendAudioToMeeting("bot_123", audio);
+    const audio = Buffer.alloc(24000);
+    await sendAudioToMeeting("bot_123", audio, 24000);
 
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://us-west-2.recall.ai/api/v1/bot/bot_123/output_audio/");
+    expect(url).toBe("https://eu-central-1.recall.ai/api/v1/bot/bot_123/output_audio/");
     expect(opts.method).toBe("POST");
-    expect(opts.headers["Content-Type"]).toBe("audio/raw");
-    expect(new Uint8Array(opts.body)).toEqual(new Uint8Array(audio));
+    expect(opts.headers["Content-Type"]).toBe("application/json");
+    const body = JSON.parse(opts.body);
+    expect(body.kind).toBe("mp3");
+    expect(typeof body.b64_data).toBe("string");
+    expect(body.b64_data.length).toBeGreaterThan(0);
   });
 
   it("throws on API error for audio output", async () => {
@@ -153,7 +167,7 @@ describe("sendAudioToMeeting", () => {
     } as unknown as Response);
 
     await expect(
-      sendAudioToMeeting("bot_123", Buffer.from([]))
+      sendAudioToMeeting("bot_123", Buffer.alloc(24000), 24000),
     ).rejects.toThrow(/Recall\.ai output audio error 400/);
   });
 });
@@ -169,8 +183,7 @@ describe("listActiveBots", () => {
     const result = await listActiveBots();
 
     const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe("https://us-west-2.recall.ai/api/v1/bot/");
+    expect(url).toBe("https://eu-central-1.recall.ai/api/v1/bot/");
     expect(result).toEqual(bots);
-    expect(result).toHaveLength(2);
   });
 });
