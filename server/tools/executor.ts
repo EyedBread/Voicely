@@ -6,6 +6,7 @@ import {
   listUpcomingEvents,
 } from "./handlers/calendar.js";
 import { initiateOutboundCall } from "../twilio/outbound.js";
+import { searchBusiness } from "./handlers/search.js";
 
 /**
  * Handler function signature — takes parsed arguments, returns a result object.
@@ -131,33 +132,10 @@ registerToolHandler("make_outbound_call", async (args) => {
 
 registerToolHandler("search_business", async (args) => {
   console.log("[ToolExecutor] search_business called with:", args);
-  return {
-    results: [
-      {
-        name: "Bella Italia",
-        phone: "+14155551234",
-        rating: 4.5,
-        cuisine: "Italian",
-        address: "123 Main St",
-      },
-      {
-        name: "Sakura Sushi",
-        phone: "+14155555678",
-        rating: 4.7,
-        cuisine: "Japanese",
-        address: "456 Oak Ave",
-      },
-      {
-        name: "Le Petit Bistro",
-        phone: "+14155559012",
-        rating: 4.3,
-        cuisine: "French",
-        address: "789 Elm Blvd",
-      },
-    ],
-    query: args.query,
-    location: args.location ?? "nearby",
-  };
+  return searchBusiness(
+    args.query as string,
+    args.location as string | undefined
+  ) as unknown as Record<string, unknown>;
 });
 
 registerToolHandler("end_call", async (args) => {

@@ -61,7 +61,7 @@ This phase adds intelligence to the voice assistant. Gemini 3.1 Flash Live suppo
     - Store call metadata (purpose, direction, outcome) in the CallSession
   - Wire the outbound call handler into `server/tools/executor.ts` so `make_outbound_call` triggers a real Twilio call
 
-- [ ] Create the search business stub and update the bridge server API:
+- [x] Create the search business stub and update the bridge server API:
   - Create `server/tools/handlers/search.ts`:
     - Implement `searchBusiness(query, location?)` as a stub that returns mock results:
       - Return 2-3 fake restaurant results with name, phone number, rating, and cuisine type

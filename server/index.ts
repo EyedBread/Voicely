@@ -4,6 +4,7 @@ import { WebSocketServer } from "ws";
 import { config, validateConfig, isConfigured } from "./config";
 import twilioWebhooks from "./twilio/webhooks";
 import { callManager } from "./callManager";
+import { initiateOutboundCall } from "./twilio/outbound";
 import type { BridgeServerStatus } from "../shared/types";
 
 const startTime = Date.now();
@@ -38,6 +39,42 @@ app.get("/status", (_req, res) => {
     configuredServices: services,
   };
   res.json(status);
+});
+
+// Call management endpoints
+
+// GET /calls — returns list of all calls (active and recent) with metadata
+app.get("/calls", (_req, res) => {
+  const calls = callManager.getAllCalls();
+  res.json({ calls });
+});
+
+// POST /calls/outbound — manually initiate an outbound call (for testing)
+app.post("/calls/outbound", async (req, res) => {
+  const { toNumber, purpose } = req.body ?? {};
+
+  if (!toNumber || typeof toNumber !== "string") {
+    res.status(400).json({ error: "toNumber is required and must be a string" });
+    return;
+  }
+
+  if (!purpose || typeof purpose !== "string") {
+    res.status(400).json({ error: "purpose is required and must be a string" });
+    return;
+  }
+
+  const result = await initiateOutboundCall(toNumber, purpose);
+  res.status(result.success ? 200 : 500).json(result);
+});
+
+// GET /calls/:callSid — get details of a specific call
+app.get("/calls/:callSid", (req, res) => {
+  const call = callManager.getCallBySid(req.params.callSid);
+  if (!call) {
+    res.status(404).json({ error: "Call not found" });
+    return;
+  }
+  res.json({ call });
 });
 
 // Create HTTP server and WebSocket server
