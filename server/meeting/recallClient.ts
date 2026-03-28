@@ -91,7 +91,7 @@ export async function createBot(
       on_bot_join: {
         send_to: "everyone",
         message:
-          "Hi! I'm Voisli, an AI meeting assistant. Say 'Hey Assistant' or 'Hey Yapper' if you want me to help.",
+          "Hi! I'm Yapper, an AI meeting assistant. Say 'Hey Assistant' or 'Hey Yapper' if you want me to help.",
       },
     },
   };

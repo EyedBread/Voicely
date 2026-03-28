@@ -30,7 +30,7 @@ describe("Twilio webhooks", () => {
       const res = await request(app).get("/twiml").expect(200);
 
       expect(res.type).toMatch(/text\/xml/);
-      expect(res.text).toContain("<Say>Connecting you to Voisli</Say>");
+      expect(res.text).toContain("<Say>Connecting you to Yapper</Say>");
       expect(res.text).toContain('url="wss://');
       expect(res.text).toContain("/media-stream");
     });
