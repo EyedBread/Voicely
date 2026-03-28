@@ -22,20 +22,7 @@ export default function HomePage() {
           </div>
           <span className="text-xl font-bold tracking-tight">Voisli</span>
         </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-muted hover:text-foreground transition-colors"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-accent-light hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Sign up
-          </Link>
-        </div>
+        <div />
       </nav>
 
       {/* Hero */}
@@ -62,7 +49,7 @@ export default function HomePage() {
               href="/app"
               className="inline-flex items-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-accent-light hover:scale-[1.02] active:scale-[0.98]"
             >
-              Open Dashboard
+              Get Started
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
@@ -77,10 +64,10 @@ export default function HomePage() {
               </svg>
             </Link>
             <Link
-              href="/app/demo"
+              href="/login"
               className="inline-flex items-center rounded-lg border border-card-border px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-card/80"
             >
-              Try Demo
+              Login
             </Link>
           </div>
         </div>
