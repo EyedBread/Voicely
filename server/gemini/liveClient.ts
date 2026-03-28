@@ -15,22 +15,27 @@ import { config } from "@server/config";
 import type { GeminiConfig } from "../../shared/types";
 
 const DEFAULT_GEMINI_CONFIG: GeminiConfig = {
-  model: "gemini-3.1-flash-live-preview",
+  model: config.gemini.liveModel,
   systemInstruction:
     "You are Voisli, a helpful AI voice assistant. You help users make phone calls, reservations, and manage their schedule. Be conversational, concise, and friendly. Keep responses short since this is a voice conversation.",
   voice: "Aoede",
+  responseModalities: [Modality.AUDIO],
+  inputAudioTranscription: true,
+  outputAudioTranscription: true,
 };
 
 const AUDIO_MIME_TYPE = "audio/pcm;rate=16000";
-
 const MAX_RECONNECT_ATTEMPTS = 3;
 const RECONNECT_DELAY_MS = 1000;
 
 export interface GeminiLiveSessionEvents {
   audio: (pcmAudio: Buffer) => void;
   text: (text: string) => void;
+  inputTranscription: (text: string) => void;
+  outputTranscription: (text: string) => void;
   toolCall: (toolCall: LiveServerToolCall) => void;
   interrupted: () => void;
+  turnComplete: () => void;
   connected: () => void;
   disconnected: () => void;
   error: (error: Error) => void;
@@ -50,9 +55,6 @@ export class GeminiLiveSession extends EventEmitter {
     this.genAI = new GoogleGenAI({ apiKey: config.gemini.apiKey });
   }
 
-  /**
-   * Establishes a WebSocket session with the Gemini Live API.
-   */
   async connect(): Promise<void> {
     if (this.connected) {
       console.warn("[Gemini] Already connected, ignoring connect() call");
@@ -62,7 +64,10 @@ export class GeminiLiveSession extends EventEmitter {
     this.closing = false;
 
     const liveConfig: LiveConnectConfig = {
-      responseModalities: [Modality.AUDIO],
+      responseModalities:
+        this.geminiConfig.responseModalities?.map((modality) =>
+          modality === "AUDIO" ? Modality.AUDIO : Modality.TEXT,
+        ) ?? [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
@@ -71,10 +76,13 @@ export class GeminiLiveSession extends EventEmitter {
         },
       },
       systemInstruction: this.geminiConfig.systemInstruction,
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
+      inputAudioTranscription: this.geminiConfig.inputAudioTranscription
+        ? {}
+        : undefined,
+      outputAudioTranscription: this.geminiConfig.outputAudioTranscription
+        ? {}
+        : undefined,
       thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
-      // VAD tuning — SDK types may lag behind the API
       ...(({
         automaticActivityDetection: {
           startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_HIGH,
@@ -99,7 +107,7 @@ export class GeminiLiveSession extends EventEmitter {
 
     try {
       console.log(
-        `[Gemini] Connecting to model: ${this.geminiConfig.model}...`
+        `[Gemini] Connecting to model: ${this.geminiConfig.model}...`,
       );
 
       this.session = await this.genAI.live.connect({
@@ -117,7 +125,10 @@ export class GeminiLiveSession extends EventEmitter {
           },
           onerror: (e: ErrorEvent) => {
             console.error(`[Gemini] WebSocket error: ${e.message ?? e}`);
-            this.emit("error", new Error(`Gemini WebSocket error: ${e.message ?? "unknown"}`));
+            this.emit(
+              "error",
+              new Error(`Gemini WebSocket error: ${e.message ?? "unknown"}`),
+            );
           },
           onclose: () => {
             const wasConnected = this.connected;
@@ -135,37 +146,26 @@ export class GeminiLiveSession extends EventEmitter {
         },
       });
     } catch (err) {
-      const error =
-        err instanceof Error ? err : new Error(String(err));
+      const error = err instanceof Error ? err : new Error(String(err));
       console.error(`[Gemini] Failed to connect: ${error.message}`);
       this.emit("error", error);
       throw error;
     }
   }
 
-  /**
-   * Sends PCM audio data to the Gemini Live session.
-   * @param pcmAudio - 16-bit PCM audio buffer at 16kHz mono
-   */
   sendAudio(pcmAudio: Buffer): void {
     if (!this.session || !this.connected) {
       return;
     }
 
-    const base64Audio = pcmAudio.toString("base64");
-
     this.session.sendRealtimeInput({
       audio: {
-        data: base64Audio,
+        data: pcmAudio.toString("base64"),
         mimeType: AUDIO_MIME_TYPE,
       },
     });
   }
 
-  /**
-   * Sends a text message to Gemini to trigger a response (e.g. "Start talking now").
-   * Uses sendClientContent which adds the message to the conversation context.
-   */
   sendText(text: string): void {
     if (!this.session || !this.connected) {
       return;
@@ -177,54 +177,35 @@ export class GeminiLiveSession extends EventEmitter {
     });
   }
 
-  /**
-   * Sends function/tool responses back to Gemini so it can continue the conversation.
-   * Call this after executing the tool calls received via the `toolCall` event.
-   */
   sendToolResponse(functionResponses: FunctionResponse[]): void {
     if (!this.session || !this.connected) {
-      console.warn("[Gemini] Cannot send tool response — not connected");
+      console.warn("[Gemini] Cannot send tool response - not connected");
       return;
     }
 
     console.log(
-      `[Gemini] Sending tool responses: ${functionResponses.map((r) => r.name).join(", ")}`
+      `[Gemini] Sending tool responses: ${functionResponses.map((r) => r.name).join(", ")}`,
     );
 
     this.session.sendToolResponse({ functionResponses });
   }
 
-  /**
-   * Register a callback for receiving audio output from Gemini.
-   */
   onAudio(callback: (pcmAudio: Buffer) => void): void {
     this.on("audio", callback);
   }
 
-  /**
-   * Register a callback for receiving text transcription from Gemini.
-   */
   onText(callback: (text: string) => void): void {
     this.on("text", callback);
   }
 
-  /**
-   * Register a callback for tool/function calls from Gemini.
-   */
   onToolCall(callback: (toolCall: LiveServerToolCall) => void): void {
     this.on("toolCall", callback);
   }
 
-  /**
-   * Register a callback for when the model is interrupted (barge-in).
-   */
   onInterrupted(callback: () => void): void {
     this.on("interrupted", callback);
   }
 
-  /**
-   * Cleanly disconnect from the Gemini Live session.
-   */
   close(): void {
     this.closing = true;
 
@@ -241,76 +222,71 @@ export class GeminiLiveSession extends EventEmitter {
     console.log("[Gemini] Session closed by client");
   }
 
-  /** Whether the session is currently connected. */
   isConnected(): boolean {
     return this.connected;
   }
 
   private handleServerMessage(message: LiveServerMessage): void {
-    // Handle setup complete
     if (message.setupComplete) {
       console.log("[Gemini] Setup complete, ready for audio");
       return;
     }
 
-    // Handle server content (audio/text responses)
     if (message.serverContent) {
       const content = message.serverContent;
 
-      // Handle interruption
       if (content.interrupted) {
         console.log("[Gemini] Model generation interrupted (barge-in)");
         this.emit("interrupted");
       }
 
-      // Extract audio data from model turn
       if (content.modelTurn?.parts) {
         for (const part of content.modelTurn.parts) {
-          if (part.inlineData?.data && part.inlineData.mimeType?.startsWith("audio/")) {
+          if (
+            part.inlineData?.data &&
+            part.inlineData.mimeType?.startsWith("audio/")
+          ) {
             const audioBuffer = Buffer.from(part.inlineData.data, "base64");
             this.emit("audio", audioBuffer);
           }
         }
       }
 
-      // Handle input transcription
       if (content.inputTranscription?.text) {
+        this.emit("inputTranscription", content.inputTranscription.text);
         this.emit("text", `[user] ${content.inputTranscription.text}`);
       }
 
-      // Handle output transcription
       if (content.outputTranscription?.text) {
+        this.emit("outputTranscription", content.outputTranscription.text);
         this.emit("text", `[assistant] ${content.outputTranscription.text}`);
       }
 
       if (content.turnComplete) {
         console.log("[Gemini] Turn complete");
+        this.emit("turnComplete");
       }
 
       return;
     }
 
-    // Handle tool calls
     if (message.toolCall) {
       console.log(
-        `[Gemini] Tool call received: ${message.toolCall.functionCalls?.map((fc) => fc.name).join(", ")}`
+        `[Gemini] Tool call received: ${message.toolCall.functionCalls?.map((fc) => fc.name).join(", ")}`,
       );
       this.emit("toolCall", message.toolCall);
       return;
     }
 
-    // Handle tool call cancellation
     if (message.toolCallCancellation) {
       console.log("[Gemini] Tool call cancelled");
       return;
     }
 
-    // Handle go away (server disconnecting)
     if (message.goAway) {
       console.warn(
-        `[Gemini] Server going away, time left: ${message.goAway.timeLeft}`
+        `[Gemini] Server going away, time left: ${message.goAway.timeLeft}`,
       );
-      return;
     }
   }
 
@@ -318,31 +294,28 @@ export class GeminiLiveSession extends EventEmitter {
     if (this.closing || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
         console.error(
-          `[Gemini] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`
+          `[Gemini] Max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached`,
         );
-        this.emit(
-          "error",
-          new Error("Max reconnect attempts reached")
-        );
+        this.emit("error", new Error("Max reconnect attempts reached"));
       }
       return;
     }
 
-    this.reconnectAttempts++;
+    this.reconnectAttempts += 1;
     const delay = RECONNECT_DELAY_MS * this.reconnectAttempts;
     console.log(
-      `[Gemini] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`
+      `[Gemini] Attempting reconnect ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms...`,
     );
 
     await new Promise((resolve) => setTimeout(resolve, delay));
 
-    if (this.closing) return;
-
     try {
       await this.connect();
-    } catch {
-      // connect() already logs and emits error; attemptReconnect will be
-      // triggered again via the onclose callback if the connection fails
+    } catch (err) {
+      console.error(
+        `[Gemini] Reconnect attempt ${this.reconnectAttempts} failed: ${err instanceof Error ? err.message : err}`,
+      );
+      await this.attemptReconnect();
     }
   }
 }

@@ -10,6 +10,7 @@ export interface ServerConfig {
   };
   gemini: {
     apiKey: string;
+    liveModel: string;
   };
   googleCalendar: {
     serviceAccountEmail: string;
@@ -45,7 +46,7 @@ function isPlaceholder(value: string): boolean {
   return (
     !value ||
     value.startsWith("your_") ||
-    value === "+1234567890" ||
+    value === "+46737869515" ||
     value.startsWith("https://your-")
   );
 }
@@ -58,6 +59,7 @@ export const config: ServerConfig = {
   },
   gemini: {
     apiKey: getEnv("GEMINI_API_KEY"),
+    liveModel: getEnv("GEMINI_LIVE_MODEL", "gemini-3.1-flash-live-preview"),
   },
   googleCalendar: {
     serviceAccountEmail: getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
@@ -68,7 +70,7 @@ export const config: ServerConfig = {
     apiKey: getEnv("RECALL_API_KEY"),
     apiBaseUrl: getEnv(
       "RECALL_API_BASE_URL",
-      "https://us-west-2.recall.ai/api/v1"
+      "https://eu-central-1.recall.ai/api/v1"
     ),
   },
   server: {
@@ -78,7 +80,7 @@ export const config: ServerConfig = {
   },
   nextPublicBridgeServerUrl: getEnv(
     "NEXT_PUBLIC_BRIDGE_SERVER_URL",
-    "http://localhost:8080"
+    "http://localhost:8080",
   ),
   bridgeServerUrl: getEnv("BRIDGE_SERVER_URL", "http://localhost:8080"),
 };
@@ -103,7 +105,7 @@ export function validateConfig(): void {
 
   if (!status.twilio) {
     missing.push(
-      "Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)"
+      "Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER)",
     );
   }
   if (!status.gemini) {
@@ -111,7 +113,7 @@ export function validateConfig(): void {
   }
   if (!status.googleCalendar) {
     missing.push(
-      "Google Calendar (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY)"
+      "Google Calendar (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY)",
     );
   }
   if (!status.recall) {
@@ -120,7 +122,7 @@ export function validateConfig(): void {
 
   if (missing.length > 0) {
     console.warn(
-      `⚠ Missing or placeholder configuration for: ${missing.join(", ")}`
+      `⚠ Missing or placeholder configuration for: ${missing.join(", ")}`,
     );
     console.warn("  The bridge server will start, but calls will not work.");
     console.warn("  Copy .env.example to .env and fill in your API keys.");
@@ -128,7 +130,7 @@ export function validateConfig(): void {
 
   if (isPlaceholder(config.server.publicUrl)) {
     console.warn(
-      "⚠ PUBLIC_SERVER_URL is not set. Twilio webhooks will not work until this is configured (e.g., via ngrok)."
+      "⚠ PUBLIC_SERVER_URL is not set. Twilio webhooks will not work until this is configured (e.g., via ngrok).",
     );
   }
 }

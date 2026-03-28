@@ -1,4 +1,4 @@
-// --- Meeting Session ---
+import type { GeminiLiveSession } from "../gemini/liveClient.js";
 
 export type MeetingBotStatus =
   | "creating"
@@ -18,22 +18,16 @@ export interface MeetingSession {
   contextWindow: TranscriptEntry[];
 }
 
-// --- Transcript ---
-
 export interface TranscriptEntry {
   speaker: string;
   text: string;
   timestamp: Date;
 }
 
-// --- Participant ---
-
 export interface MeetingParticipant {
   name: string;
   speakerId: string;
 }
-
-// --- Recall.ai API Response Types ---
 
 export interface RecallBotResponse {
   id: string;
@@ -47,20 +41,100 @@ export interface RecallStatusChange {
   created_at: string;
 }
 
+export interface RecallRealtimeEndpointConfig {
+  type: "websocket" | "webhook";
+  url: string;
+  events: string[];
+}
+
+export interface RecallAutomaticAudioOutputConfig {
+  in_call_recording: {
+    data: {
+      kind: "mp3";
+      b64_data: string;
+    };
+  };
+}
+
+export interface RecallOutputMediaPageConfig {
+  url: string;
+}
+
+export interface RecallOutputMediaEndpoint {
+  kind: "webpage";
+  config: RecallOutputMediaPageConfig;
+}
+
+export interface RecallOutputMediaConfig {
+  camera?: RecallOutputMediaEndpoint;
+}
+
 export interface RecallBotConfig {
   meeting_url: string;
   bot_name?: string;
-  real_time_transcription?: {
-    destination_url: string;
+  recording_config?: {
+    audio_mixed_raw?: Record<string, never>;
+    realtime_endpoints?: RecallRealtimeEndpointConfig[];
+    include_bot_in_recording?: {
+      audio?: boolean;
+    };
   };
-  transcription_options?: {
-    provider: string;
-  };
-  recording_mode?: string;
+  automatic_audio_output?: RecallAutomaticAudioOutputConfig;
+  output_media?: RecallOutputMediaConfig;
   chat?: {
     on_bot_join?: {
       send_to: string;
       message: string;
     };
   };
+}
+
+export interface RecallRealtimeBotRef {
+  id: string;
+}
+
+export interface RecallParticipantRef {
+  id?: string;
+  name?: string;
+}
+
+export interface RecallAudioMixedRawDataEvent {
+  event: "audio_mixed_raw.data";
+  data: {
+    bot: RecallRealtimeBotRef;
+    data: {
+      buffer: string;
+      mime_type?: string;
+    };
+  };
+}
+
+export interface RecallParticipantSpeechEvent {
+  event: "participant_events.speech_on" | "participant_events.speech_off";
+  data: {
+    bot: RecallRealtimeBotRef;
+    participant?: RecallParticipantRef;
+  };
+}
+
+export type RecallRealtimeEvent =
+  | RecallAudioMixedRawDataEvent
+  | RecallParticipantSpeechEvent;
+
+export interface MeetingAudioSessionState {
+  botId: string;
+  geminiSession: GeminiLiveSession;
+  recallAudioConnected: boolean;
+  geminiConnected: boolean;
+  outputMediaConnected: boolean;
+  outputMediaTurnStreaming: boolean;
+  wakeActiveUntil: number;
+  suppressIncomingAudioUntil: number;
+  currentTurnActive: boolean;
+  currentTurnAccepted: boolean;
+  currentTurnHadWakeWord: boolean;
+  currentTurnInputTexts: string[];
+  currentTurnOutputTexts: string[];
+  currentTurnOutputAudio: Buffer[];
+  speaking: boolean;
 }
