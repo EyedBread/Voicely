@@ -42,7 +42,7 @@ This phase builds the meeting assistant feature: Voisli joins a Google Meet call
     - `POST /webhooks/recall/audio` — receives audio data if using audio-based processing
     - Mount these routes in `server/index.ts`
 
-- [ ] Implement the meeting AI brain — Gemini integration for meeting Q&A:
+- [x] Implement the meeting AI brain — Gemini integration for meeting Q&A:
   - Create `server/meeting/meetingAI.ts`:
     - Creates a Gemini session (can use standard Gemini API or Live API depending on Recall.ai's audio capabilities) specifically for meeting context
     - System prompt for meeting assistant mode (add to `server/gemini/prompts.ts`):
