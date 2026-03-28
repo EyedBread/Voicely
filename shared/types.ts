@@ -82,6 +82,7 @@ export interface BridgeServerStatus {
   configuredServices: {
     twilio: boolean;
     gemini: boolean;
+    googleCalendar: boolean;
   };
 }
 

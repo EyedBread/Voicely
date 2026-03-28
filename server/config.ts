@@ -11,6 +11,11 @@ export interface ServerConfig {
   gemini: {
     apiKey: string;
   };
+  googleCalendar: {
+    serviceAccountEmail: string;
+    privateKey: string;
+    calendarId: string;
+  };
   server: {
     port: number;
     host: string;
@@ -22,6 +27,7 @@ export interface ServerConfig {
 export interface ServiceStatus {
   twilio: boolean;
   gemini: boolean;
+  googleCalendar: boolean;
 }
 
 function getEnv(key: string, fallback?: string): string {
@@ -47,6 +53,11 @@ export const config: ServerConfig = {
   gemini: {
     apiKey: getEnv("GEMINI_API_KEY"),
   },
+  googleCalendar: {
+    serviceAccountEmail: getEnv("GOOGLE_SERVICE_ACCOUNT_EMAIL"),
+    privateKey: getEnv("GOOGLE_PRIVATE_KEY"),
+    calendarId: getEnv("GOOGLE_CALENDAR_ID", "primary"),
+  },
   server: {
     port: parseInt(getEnv("BRIDGE_SERVER_PORT", "8080"), 10),
     host: getEnv("BRIDGE_SERVER_HOST", "localhost"),
@@ -65,6 +76,9 @@ export function isConfigured(): ServiceStatus {
       !isPlaceholder(config.twilio.authToken) &&
       !isPlaceholder(config.twilio.phoneNumber),
     gemini: !isPlaceholder(config.gemini.apiKey),
+    googleCalendar:
+      !isPlaceholder(config.googleCalendar.serviceAccountEmail) &&
+      !isPlaceholder(config.googleCalendar.privateKey),
   };
 }
 
@@ -79,6 +93,11 @@ export function validateConfig(): void {
   }
   if (!status.gemini) {
     missing.push("Gemini (GEMINI_API_KEY)");
+  }
+  if (!status.googleCalendar) {
+    missing.push(
+      "Google Calendar (GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY)"
+    );
   }
 
   if (missing.length > 0) {

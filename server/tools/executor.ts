@@ -1,4 +1,10 @@
 import type { FunctionCall, FunctionResponse } from "@google/genai";
+import { isConfigured } from "../config.js";
+import {
+  checkAvailability,
+  createEvent,
+  listUpcomingEvents,
+} from "./handlers/calendar.js";
 
 /**
  * Handler function signature — takes parsed arguments, returns a result object.
@@ -55,34 +61,52 @@ export async function executeToolCalls(
 }
 
 // ---------------------------------------------------------------------------
-// Register stub handlers for all tools.
-// These will be replaced with real implementations in later phases.
+// Register tool handlers.
+// Calendar tools use the real Google Calendar API when configured, otherwise
+// they fall back to mock responses. Other tools are stubs for now.
 // ---------------------------------------------------------------------------
 
 registerToolHandler("check_calendar_availability", async (args) => {
   console.log("[ToolExecutor] check_calendar_availability called with:", args);
-  // Stub: return a plausible mock response
-  return {
-    available: true,
-    date: args.date,
-    time_start: args.time_start,
-    time_end: args.time_end,
-    conflicts: [],
-    message: "You are free during this time.",
-  };
+  if (!isConfigured().googleCalendar) {
+    return {
+      available: true,
+      date: args.date,
+      time_start: args.time_start,
+      time_end: args.time_end,
+      conflicts: [],
+      message:
+        "Google Calendar is not configured. Returning mock availability (free).",
+    };
+  }
+  return checkAvailability(
+    args.date as string,
+    args.time_start as string,
+    args.time_end as string
+  );
 });
 
 registerToolHandler("create_calendar_event", async (args) => {
   console.log("[ToolExecutor] create_calendar_event called with:", args);
-  return {
-    success: true,
-    event_id: `evt_${Date.now()}`,
-    title: args.title,
-    date: args.date,
-    time_start: args.time_start,
-    time_end: args.time_end,
-    message: `Event "${args.title}" created successfully.`,
-  };
+  if (!isConfigured().googleCalendar) {
+    return {
+      success: true,
+      event_id: `evt_mock_${Date.now()}`,
+      title: args.title,
+      date: args.date,
+      time_start: args.time_start,
+      time_end: args.time_end,
+      message: `Google Calendar is not configured. Mock event "${args.title}" created.`,
+    };
+  }
+  return createEvent(
+    args.title as string,
+    args.date as string,
+    args.time_start as string,
+    args.time_end as string,
+    args.description as string | undefined,
+    args.location as string | undefined
+  );
 });
 
 registerToolHandler("make_outbound_call", async (args) => {

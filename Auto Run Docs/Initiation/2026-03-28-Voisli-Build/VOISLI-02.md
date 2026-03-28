@@ -21,7 +21,7 @@ This phase adds intelligence to the voice assistant. Gemini 3.1 Flash Live suppo
     - When a tool call is received from Gemini, invoke the executor and send the function response back to continue the conversation
     - Handle parallel tool calls if Gemini sends multiple at once
 
-- [ ] Integrate Google Calendar API for availability checks and event creation:
+- [x] Integrate Google Calendar API for availability checks and event creation:
   - Create `server/tools/handlers/calendar.ts`:
     - Set up Google Calendar API client using a service account or OAuth2 (use service account for hackathon simplicity — the user shares their calendar with the service account email)
     - Install `googleapis` package if not already present

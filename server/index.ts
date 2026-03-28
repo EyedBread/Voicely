@@ -67,8 +67,9 @@ server.listen(port, host, () => {
 
   const services = isConfigured();
   console.log(`\n  Services:`);
-  console.log(`    Twilio:  ${services.twilio ? "✓ configured" : "✗ not configured"}`);
-  console.log(`    Gemini:  ${services.gemini ? "✓ configured" : "✗ not configured"}`);
+  console.log(`    Twilio:    ${services.twilio ? "✓ configured" : "✗ not configured"}`);
+  console.log(`    Gemini:    ${services.gemini ? "✓ configured" : "✗ not configured"}`);
+  console.log(`    Calendar:  ${services.googleCalendar ? "✓ configured" : "✗ not configured"}`);
 
   if (config.server.publicUrl && !config.server.publicUrl.startsWith("https://your-")) {
     console.log(`\n  Public URL: ${config.server.publicUrl}`);
