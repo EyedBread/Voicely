@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Voisli",
+  title: "Yapper",
   description: "Your AI Voice Assistant — powered by Gemini Live",
 };
 

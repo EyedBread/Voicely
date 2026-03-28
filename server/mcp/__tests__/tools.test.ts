@@ -1,14 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerTools } from "../tools.js";
+import type { BridgeAPIFn } from "../bridge.js";
 
-// Mock the bridge module
-vi.mock("../bridge.js", () => ({
-  callBridgeAPI: vi.fn(),
-}));
-
-import { callBridgeAPI } from "../bridge.js";
-const mockCallBridgeAPI = vi.mocked(callBridgeAPI);
+const mockCallBridgeAPI = vi.fn() as unknown as BridgeAPIFn & ReturnType<typeof vi.fn>;
 
 // Capture tools registered by registerTools
 type RegisteredTool = {
@@ -31,7 +26,7 @@ function captureTools(): RegisteredTool[] {
     ),
   } as unknown as McpServer;
 
-  registerTools(server);
+  registerTools(server, mockCallBridgeAPI);
   return entries;
 }
 

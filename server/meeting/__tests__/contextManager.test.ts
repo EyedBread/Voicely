@@ -133,12 +133,12 @@ describe("MeetingContextManager", () => {
   // -------------------------------------------------------------------------
 
   describe("detectBotMention", () => {
-    it("detects 'Voisli' mention (case insensitive)", () => {
+    it("detects 'Yapper' mention (case insensitive)", () => {
       expect(
-        ctx.detectBotMention(makeEntry("Alice", "Hey Voisli, what time is it?"))
+        ctx.detectBotMention(makeEntry("Alice", "Hey Yapper, what time is it?"))
       ).toBe(true);
       expect(
-        ctx.detectBotMention(makeEntry("Alice", "Can voisli answer that?"))
+        ctx.detectBotMention(makeEntry("Alice", "Can yapper answer that?"))
       ).toBe(true);
       expect(
         ctx.detectBotMention(makeEntry("Alice", "VOISLI help me"))

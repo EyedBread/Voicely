@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { config, validateConfig, isConfigured } from "./config";
 import twilioWebhooks from "./twilio/webhooks";
 import recallWebhooks from "./meeting/webhooks";
@@ -11,6 +12,7 @@ import type { BridgeServerStatus } from "../shared/types";
 import { sseHandler } from "./events";
 import { runHealthCheck } from "./health";
 import authRoutes from "./auth";
+import googleOAuthRoutes from "./googleOAuth";
 import { loadKnowledgeBase, saveKnowledgeBase, clearKnowledgeCache, type KnowledgeBase } from "./knowledge/index";
 
 const startTime = Date.now();
@@ -35,6 +37,7 @@ app.use((_req, res, next) => {
 
 // Mount auth routes
 app.use(authRoutes);
+app.use(googleOAuthRoutes);
 
 // Mount Twilio webhook routes
 app.use(twilioWebhooks);
@@ -219,6 +222,15 @@ app.put("/knowledge", (req, res) => {
   }
 });
 
+// Proxy all non-API requests to the Next.js dev server
+const nextProxy = createProxyMiddleware({
+  target: "http://localhost:3001",
+  changeOrigin: true,
+  ws: false,
+  logger: undefined,
+});
+app.use(nextProxy);
+
 // Global error handler middleware — catches unhandled errors in route handlers
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(`[Bridge] Unhandled error: ${err.message}`, err.stack);
@@ -249,7 +261,8 @@ server.on("upgrade", (request, socket, head) => {
       wssOutbound.emit("connection", ws, request);
     });
   } else {
-    socket.destroy();
+    // Forward other WebSocket connections (e.g. Next.js HMR) to the Next.js dev server
+    nextProxy.upgrade?.(request, socket, head);
   }
 });
 
@@ -313,7 +326,7 @@ const { port, host } = config.server;
 
 server.listen(port, host, () => {
   console.log(`\n========================================`);
-  console.log(`  Voisli Bridge Server`);
+  console.log(`  Yapper Bridge Server`);
   console.log(`  Listening on http://${host}:${port}`);
   console.log(`========================================`);
 

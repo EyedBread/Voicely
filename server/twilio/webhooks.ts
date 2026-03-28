@@ -23,7 +23,7 @@ router.post("/twiml", (_req: Request, res: Response) => {
     const response = new VoiceResponse();
 
     // Greet the caller before connecting to the AI stream
-    response.say("Connecting you to Voisli");
+    response.say("Connecting you to Yapper");
 
     // Open a bidirectional media stream to the bridge server
     const connect = response.connect();

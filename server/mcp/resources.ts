@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { callBridgeAPI } from "./bridge.js";
+import type { BridgeAPIFn } from "./bridge.js";
 
-export function registerResources(server: McpServer): void {
+export function registerResources(server: McpServer, callBridgeAPI: BridgeAPIFn): void {
   // ── voisli://status ────────────────────────────────────────────────
   server.registerResource(
     "status",

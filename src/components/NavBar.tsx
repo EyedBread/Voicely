@@ -35,7 +35,7 @@ export function NavBar() {
             </svg>
           </div>
           <span className="text-xl font-bold tracking-tight text-foreground">
-            Voisli
+            Yapper
           </span>
         </Link>
         <div className="flex items-center gap-6">

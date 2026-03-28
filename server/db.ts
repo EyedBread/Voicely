@@ -27,4 +27,16 @@ db.exec(`
   )
 `);
 
+// Store per-user Google OAuth tokens for Calendar integration
+db.exec(`
+  CREATE TABLE IF NOT EXISTS google_calendar_tokens (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expiry_date INTEGER NOT NULL,
+    scope TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 export default db;

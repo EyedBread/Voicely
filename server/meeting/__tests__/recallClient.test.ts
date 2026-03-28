@@ -61,7 +61,7 @@ describe("createBot", () => {
 
     const body = JSON.parse(opts.body);
     expect(body.meeting_url).toBe("https://meet.google.com/abc-defg-hij");
-    expect(body.bot_name).toBe("Voisli Assistant");
+    expect(body.bot_name).toBe("Yapper Assistant");
     expect(body.real_time_transcription.destination_url).toBe(
       "https://test.ngrok.io/webhooks/recall/transcript"
     );

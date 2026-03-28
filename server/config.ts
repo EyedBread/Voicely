@@ -16,6 +16,10 @@ export interface ServerConfig {
     privateKey: string;
     calendarId: string;
   };
+  googleOAuth: {
+    clientId: string;
+    clientSecret: string;
+  };
   recall: {
     apiKey: string;
     apiBaseUrl: string;
@@ -64,6 +68,10 @@ export const config: ServerConfig = {
     privateKey: getEnv("GOOGLE_PRIVATE_KEY"),
     calendarId: getEnv("GOOGLE_CALENDAR_ID", "primary"),
   },
+  googleOAuth: {
+    clientId: getEnv("GOOGLE_CLIENT_ID"),
+    clientSecret: getEnv("GOOGLE_CLIENT_SECRET"),
+  },
   recall: {
     apiKey: getEnv("RECALL_API_KEY"),
     apiBaseUrl: getEnv(
@@ -73,7 +81,7 @@ export const config: ServerConfig = {
   },
   server: {
     port: parseInt(getEnv("PORT", getEnv("BRIDGE_SERVER_PORT", "8080")), 10),
-    host: getEnv("BRIDGE_SERVER_HOST", "localhost"),
+    host: getEnv("BRIDGE_SERVER_HOST", "0.0.0.0"),
     publicUrl: getEnv("PUBLIC_SERVER_URL"),
   },
   nextPublicBridgeServerUrl: getEnv(

@@ -20,7 +20,7 @@ export default function HomePage() {
               />
             </svg>
           </div>
-          <span className="text-xl font-bold tracking-tight">Voisli</span>
+          <span className="text-xl font-bold tracking-tight">Yapper</span>
         </div>
         <div />
       </nav>
@@ -40,7 +40,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg text-muted max-w-md mx-auto leading-relaxed">
-            Voisli answers calls, joins meetings, and takes action — so you
+            Yapper answers calls, joins meetings, and takes action — so you
             never miss what matters.
           </p>
 
@@ -114,7 +114,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="px-6 py-8 text-center text-sm text-muted">
-        Voisli &mdash; AI Voice Assistant
+        Yapper &mdash; AI Voice Assistant
       </footer>
     </div>
   );

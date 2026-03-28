@@ -40,7 +40,7 @@ export default function AppLayout({
               </svg>
             </div>
             <span className="text-xl font-bold tracking-tight text-foreground">
-              Voisli
+              Yapper
             </span>
           </Link>
           <div className="flex items-center gap-6">
@@ -61,16 +61,6 @@ export default function AppLayout({
                 </Link>
               );
             })}
-            <Link
-              href="/app/demo"
-              className={`text-sm font-medium transition-colors ${
-                pathname === "/app/demo"
-                  ? "text-accent-light border-b border-accent-light pb-0.5"
-                  : "text-accent-light hover:text-accent"
-              }`}
-            >
-              Demo
-            </Link>
             <div className="ml-2 flex items-center gap-2 border-l border-card-border/50 pl-4">
               {isAuthenticated ? (
                 <>

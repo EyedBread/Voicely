@@ -147,7 +147,7 @@ export default function MeetingsPage() {
           Join a Meeting
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Paste a Google Meet URL to send the Voisli assistant
+          Paste a Google Meet URL to send the Yapper assistant
         </p>
         <form onSubmit={handleJoinMeeting} className="mt-4 space-y-3">
           <input
@@ -165,7 +165,7 @@ export default function MeetingsPage() {
               </label>
               <input
                 type="text"
-                placeholder="Voisli Assistant"
+                placeholder="Yapper Assistant"
                 value={botName}
                 onChange={(e) => setBotName(e.target.value)}
                 className="nexgen-input w-full rounded-2xl border border-card-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted/50 transition-all"

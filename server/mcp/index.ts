@@ -11,6 +11,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { registerTools } from "./tools.js";
 import { registerResources } from "./resources.js";
+import { callBridgeAPI } from "./bridge.js";
 
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
@@ -22,8 +23,8 @@ const server = new McpServer({
 });
 
 // Register all tools and resources
-registerTools(server);
-registerResources(server);
+registerTools(server, callBridgeAPI);
+registerResources(server, callBridgeAPI);
 
 // Connect via stdio transport
 async function main() {

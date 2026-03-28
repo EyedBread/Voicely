@@ -13,8 +13,8 @@ describe("system prompts", () => {
     expect(OUTBOUND_GENERIC_PROMPT.length).toBeGreaterThan(0);
   });
 
-  it("should mention Voisli in the inbound prompt", () => {
-    expect(INBOUND_ASSISTANT_PROMPT).toContain("Voisli");
+  it("should mention Yapper in the inbound prompt", () => {
+    expect(INBOUND_ASSISTANT_PROMPT).toContain("Yapper");
   });
 
   it("should mention reservation in the outbound reservation prompt", () => {

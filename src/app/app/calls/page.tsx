@@ -91,7 +91,7 @@ export default function CallsPage() {
           )}
         </div>
         <p className="mt-2 text-sm text-muted">
-          All inbound and outbound calls managed by Voisli
+          All inbound and outbound calls managed by Yapper
           <span className="ml-2 inline-flex items-center gap-1.5">
             <span
               className={`h-1.5 w-1.5 rounded-full ${
@@ -144,7 +144,7 @@ export default function CallsPage() {
           </div>
           <p className="mt-4 text-sm font-medium text-muted">No calls yet</p>
           <p className="mt-1 text-xs text-muted/60">
-            Calls will appear here once calls are made through Voisli
+            Calls will appear here once calls are made through Yapper
           </p>
         </div>
       ) : (

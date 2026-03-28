@@ -13,6 +13,12 @@ export interface BridgeResponse<T = unknown> {
   data: T;
 }
 
+export type BridgeAPIFn = <T = unknown>(
+  method: "GET" | "POST" | "DELETE",
+  path: string,
+  body?: Record<string, unknown>
+) => Promise<BridgeResponse<T>>;
+
 export async function callBridgeAPI<T = unknown>(
   method: "GET" | "POST" | "DELETE",
   path: string,

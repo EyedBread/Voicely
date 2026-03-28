@@ -1,14 +1,14 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { callBridgeAPI } from "./bridge.js";
+import type { BridgeAPIFn } from "./bridge.js";
 
-export function registerTools(server: McpServer): void {
+export function registerTools(server: McpServer, callBridgeAPI: BridgeAPIFn): void {
   // ── make_call ──────────────────────────────────────────────────────
   server.registerTool(
     "make_call",
     {
       description:
-        "Initiate a phone call through Voisli. The AI voice assistant will call the given number and follow the provided purpose/instructions.",
+        "Initiate a phone call through Yapper. The AI voice assistant will call the given number and follow the provided purpose/instructions.",
       inputSchema: {
         phone_number: z.string().describe("Phone number to call (E.164 format preferred, e.g. +15551234567)"),
         purpose: z.string().describe("Why you are calling — this guides the AI assistant's conversation"),
@@ -32,10 +32,10 @@ export function registerTools(server: McpServer): void {
     "join_meeting",
     {
       description:
-        "Send the Voisli bot to join a video meeting (Zoom, Google Meet, Teams, etc.). The bot will listen, transcribe, and can answer questions.",
+        "Send the Yapper bot to join a video meeting (Zoom, Google Meet, Teams, etc.). The bot will listen, transcribe, and can answer questions.",
       inputSchema: {
         meeting_url: z.string().describe("Full meeting URL (e.g. https://zoom.us/j/123456)"),
-        bot_name: z.string().optional().describe("Display name for the bot in the meeting (default: Voisli)"),
+        bot_name: z.string().optional().describe("Display name for the bot in the meeting (default: Yapper)"),
       },
     },
     async ({ meeting_url, bot_name }) => {
@@ -54,7 +54,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     "leave_meeting",
     {
-      description: "Remove the Voisli bot from a meeting.",
+      description: "Remove the Yapper bot from a meeting.",
       inputSchema: {
         bot_id: z.string().describe("The bot ID returned when the bot joined the meeting"),
       },

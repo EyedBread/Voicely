@@ -13,7 +13,7 @@ const SETUP_KEY = "voisli_setup_completed";
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [setupCompleted, setSetupCompleted] = useState(true);
+  const [setupCompleted, setSetupCompleted] = useState(false);
 
   useEffect(() => {
     try {

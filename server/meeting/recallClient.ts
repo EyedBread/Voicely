@@ -57,7 +57,7 @@ export async function createBot(
 
   const body: RecallBotConfig = {
     meeting_url: meetingUrl,
-    bot_name: botName ?? "Voisli Assistant",
+    bot_name: botName ?? "Yapper Assistant",
     real_time_transcription: {
       destination_url: `${webhookBase}/webhooks/recall/transcript`,
     },
@@ -69,7 +69,7 @@ export async function createBot(
       on_bot_join: {
         send_to: "everyone",
         message:
-          "Hi! I'm Voisli, an AI meeting assistant. Mention my name if you have a question.",
+          "Hi! I'm Yapper, an AI meeting assistant. Mention my name if you have a question.",
       },
     },
   };

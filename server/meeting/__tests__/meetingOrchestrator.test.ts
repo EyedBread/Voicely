@@ -306,7 +306,7 @@ describe("MeetingOrchestrator", () => {
 
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, when is our next standup?")
+        makeEntry("Alice", "Hey Yapper, when is our next standup?")
       );
 
       // Wait for async response pipeline
@@ -315,7 +315,7 @@ describe("MeetingOrchestrator", () => {
       });
 
       expect(mockHandleQuestion).toHaveBeenCalledWith(
-        "Hey Voisli, when is our next standup?",
+        "Hey Yapper, when is our next standup?",
         expect.stringContaining("Alice")
       );
       expect(mockGenerateAudioResponse).toHaveBeenCalledWith(
@@ -327,7 +327,7 @@ describe("MeetingOrchestrator", () => {
       );
       expect(responseEvents[0]).toEqual({
         botId: "bot_123",
-        question: "Hey Voisli, when is our next standup?",
+        question: "Hey Yapper, when is our next standup?",
         answer: "Here is the answer.",
       });
     });
@@ -352,7 +352,7 @@ describe("MeetingOrchestrator", () => {
 
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, what time is it?")
+        makeEntry("Alice", "Hey Yapper, what time is it?")
       );
 
       await vi.waitFor(() => {
@@ -380,7 +380,7 @@ describe("MeetingOrchestrator", () => {
 
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
+        makeEntry("Alice", "Hey Yapper, help me")
       );
 
       await vi.waitFor(() => {
@@ -410,7 +410,7 @@ describe("MeetingOrchestrator", () => {
 
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
+        makeEntry("Alice", "Hey Yapper, help me")
       );
 
       await vi.waitFor(() => {
@@ -438,7 +438,7 @@ describe("MeetingOrchestrator", () => {
 
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, help me")
+        makeEntry("Alice", "Hey Yapper, help me")
       );
 
       await vi.waitFor(() => {
@@ -461,7 +461,7 @@ describe("MeetingOrchestrator", () => {
       // First mention — should respond
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, first question?")
+        makeEntry("Alice", "Hey Yapper, first question?")
       );
 
       await vi.waitFor(() => {
@@ -471,7 +471,7 @@ describe("MeetingOrchestrator", () => {
       // Second mention immediately — should be skipped (cooldown = 50ms)
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Bob", "Hey Voisli, second question?")
+        makeEntry("Bob", "Hey Yapper, second question?")
       );
 
       // Give it a moment, but it should NOT trigger another response
@@ -487,7 +487,7 @@ describe("MeetingOrchestrator", () => {
       // First mention
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, first?")
+        makeEntry("Alice", "Hey Yapper, first?")
       );
 
       await vi.waitFor(() => {
@@ -500,7 +500,7 @@ describe("MeetingOrchestrator", () => {
       // Second mention — should respond
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Bob", "Hey Voisli, second?")
+        makeEntry("Bob", "Hey Yapper, second?")
       );
 
       await vi.waitFor(() => {
@@ -521,7 +521,7 @@ describe("MeetingOrchestrator", () => {
       // First mention — starts responding
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Alice", "Hey Voisli, question 1?")
+        makeEntry("Alice", "Hey Yapper, question 1?")
       );
 
       // Give the async handler a tick to start
@@ -530,7 +530,7 @@ describe("MeetingOrchestrator", () => {
       // Second mention while first is still processing — should be skipped
       capturedCbs.transcript!(
         "bot_123",
-        makeEntry("Bob", "Hey Voisli, question 2?")
+        makeEntry("Bob", "Hey Yapper, question 2?")
       );
 
       // Resolve the first response
