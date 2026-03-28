@@ -94,8 +94,9 @@ This phase turns Voisli into an MCP (Model Context Protocol) server, allowing Cl
   - Update the main dashboard to show an "Integrations" link in the navigation
   - Update the bridge server `GET /status` endpoint to include MCP-related info (whether MCP is configured)
 
-- [ ] Run all tests across the project (tools, audio, meeting, MCP) and fix any failures. Verify:
+- [x] Run all tests across the project (tools, audio, meeting, MCP) and fix any failures. Verify:
   - The MCP server starts via `npm run mcp` and outputs its tool list
   - The bridge server still starts correctly with all endpoints
   - The Next.js dashboard builds and all pages render
   - All test suites pass
+  <!-- Verified 2026-03-28: 184 tests pass (12 files), MCP server lists 8 tools + 5 resources, bridge server runs on :8080, Next.js builds 7 pages with no errors -->
