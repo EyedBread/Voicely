@@ -8,10 +8,12 @@ interface User {
 }
 
 const STORAGE_KEY = "voisli_user";
+const SETUP_KEY = "voisli_setup_completed";
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [setupCompleted, setSetupCompleted] = useState(true);
 
   useEffect(() => {
     try {
@@ -21,6 +23,7 @@ export function useAuth() {
       // Corrupt data — clear it
       localStorage.removeItem(STORAGE_KEY);
     }
+    setSetupCompleted(localStorage.getItem(SETUP_KEY) === "true");
     setLoading(false);
   }, []);
 
@@ -34,11 +37,18 @@ export function useAuth() {
     setUser(null);
   }, []);
 
+  const completeSetup = useCallback(() => {
+    localStorage.setItem(SETUP_KEY, "true");
+    setSetupCompleted(true);
+  }, []);
+
   return {
     user,
     isAuthenticated: !!user,
+    setupCompleted,
     loading,
     login,
     logout,
+    completeSetup,
   };
 }

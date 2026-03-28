@@ -5,18 +5,22 @@ import { useState } from "react";
 const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
-const MCP_CONFIG = `{
-  "mcpServers": {
-    "voisli": {
-      "command": "npx",
-      "args": ["tsx", "server/mcp/index.ts"],
-      "cwd": "/path/to/voisli",
-      "env": {
-        "BRIDGE_SERVER_URL": "http://localhost:8080"
-      }
-    }
-  }
-}`;
+const MCP_CONFIG = JSON.stringify(
+  {
+    mcpServers: {
+      voisli: {
+        command: "npx",
+        args: ["tsx", "server/mcp/index.ts"],
+        cwd: "/path/to/voisli",
+        env: {
+          BRIDGE_SERVER_URL: BRIDGE_URL,
+        },
+      },
+    },
+  },
+  null,
+  2
+);
 
 const TOOLS = [
   {

@@ -13,18 +13,12 @@ interface SignupFormProps {
 export function SignupForm({ onSuccess, buttonLabel = "Create Account" }: SignupFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
 
     setLoading(true);
     try {
@@ -92,22 +86,6 @@ export function SignupForm({ onSuccess, buttonLabel = "Create Account" }: Signup
           onChange={(e) => setPassword(e.target.value)}
           className="mt-1 block w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
           placeholder="At least 6 characters"
-        />
-      </div>
-
-      <div>
-        <label htmlFor="signup-confirm" className="block text-sm font-medium text-muted">
-          Confirm Password
-        </label>
-        <input
-          id="signup-confirm"
-          type="password"
-          required
-          minLength={6}
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          className="mt-1 block w-full rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          placeholder="Re-enter password"
         />
       </div>
 
