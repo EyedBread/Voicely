@@ -8,6 +8,7 @@ import { callManager } from "./callManager";
 import { initiateOutboundCall } from "./twilio/outbound";
 import { meetingOrchestrator } from "./meeting/meetingOrchestrator";
 import type { BridgeServerStatus } from "../shared/types";
+import { sseHandler } from "./events";
 
 const startTime = Date.now();
 
@@ -34,6 +35,9 @@ app.use(twilioWebhooks);
 
 // Mount Recall.ai webhook routes
 app.use(recallWebhooks);
+
+// SSE endpoint for real-time dashboard updates
+app.get("/events", sseHandler);
 
 // Status endpoint for the dashboard
 app.get("/status", (_req, res) => {

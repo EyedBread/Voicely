@@ -8,6 +8,7 @@ import { MeetingContextManager } from "./contextManager.js";
 import { MeetingAI } from "./meetingAI.js";
 import * as recallClient from "./recallClient.js";
 import { onTranscript, onStatusChange } from "./webhooks.js";
+import { emitServerEvent } from "../events.js";
 
 // ---------------------------------------------------------------------------
 // Meeting orchestrator — manages the full lifecycle of a meeting session:
@@ -77,6 +78,12 @@ export class MeetingOrchestrator extends EventEmitter {
     console.log(
       `[MeetingOrchestrator] Bot ${botResponse.id} created for meeting: ${meetingUrl}`
     );
+
+    emitServerEvent("meeting_joined", {
+      botId: botResponse.id,
+      meetingUrl,
+      status: session.status,
+    });
 
     return { ...session };
   }
@@ -151,6 +158,13 @@ export class MeetingOrchestrator extends EventEmitter {
       session.participants = cm.getParticipants();
       session.contextWindow = cm.getTranscript();
     }
+
+    emitServerEvent("transcript_update", {
+      botId,
+      speaker: entry.speaker,
+      text: entry.text,
+      timestamp: entry.timestamp instanceof Date ? entry.timestamp.toISOString() : String(entry.timestamp),
+    });
 
     // Check if the bot was mentioned / a question was directed at it
     if (cm.detectBotMention(entry)) {
@@ -237,6 +251,12 @@ export class MeetingOrchestrator extends EventEmitter {
 
       this.lastResponseTime.set(botId, Date.now());
       this.emit("response", botId, question, answer);
+
+      emitServerEvent("bot_spoke", {
+        botId,
+        question,
+        answer,
+      });
     } finally {
       this.responding.delete(botId);
     }

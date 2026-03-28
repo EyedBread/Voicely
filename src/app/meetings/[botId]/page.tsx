@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useServerEvents, type ServerEvent } from "@/hooks/useServerEvents";
 
 type MeetingBotStatus =
   | "creating"
@@ -40,58 +41,88 @@ export default function MeetingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [leaveLoading, setLeaveLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchSession = useCallback(async () => {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/meetings/${botId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSession(data.session);
+      } else {
+        setError("Meeting session not found");
+      }
+    } catch {
+      setError("Could not reach bridge server");
+    } finally {
+      setLoading(false);
+    }
+  }, [botId]);
+
+  const fetchTranscript = useCallback(async () => {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/meetings/${botId}/transcript`);
+      if (res.ok) {
+        const data = await res.json();
+        setTranscript(data.transcript ?? []);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [botId]);
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/meetings/${botId}/summary`);
+      if (res.ok) {
+        const data = await res.json();
+        setSummary(data.summary ?? "");
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [botId]);
+
+  // Real-time event handler — stream transcript updates live
+  const handleEvent = useCallback(
+    (event: ServerEvent) => {
+      if (event.type === "transcript_update" && event.data.botId === botId) {
+        const newEntry: TranscriptEntry = {
+          speaker: (event.data.speaker as string) ?? "",
+          text: (event.data.text as string) ?? "",
+          timestamp: (event.data.timestamp as string) ?? event.timestamp,
+        };
+        setTranscript((prev) => [...prev, newEntry]);
+        // Auto-scroll to bottom
+        setTimeout(() => {
+          transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      }
+
+      if (event.type === "bot_spoke" && event.data.botId === botId) {
+        // Refresh session to pick up any status changes
+        fetchSession();
+      }
+    },
+    [botId, fetchSession]
+  );
+
+  useServerEvents(handleEvent, {
+    eventTypes: ["transcript_update", "bot_spoke"],
+  });
 
   useEffect(() => {
-    async function fetchSession() {
-      try {
-        const res = await fetch(`${BRIDGE_URL}/meetings/${botId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSession(data.session);
-        } else {
-          setError("Meeting session not found");
-        }
-      } catch {
-        setError("Could not reach bridge server");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function fetchTranscript() {
-      try {
-        const res = await fetch(`${BRIDGE_URL}/meetings/${botId}/transcript`);
-        if (res.ok) {
-          const data = await res.json();
-          setTranscript(data.transcript ?? []);
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-
-    async function fetchSummary() {
-      try {
-        const res = await fetch(`${BRIDGE_URL}/meetings/${botId}/summary`);
-        if (res.ok) {
-          const data = await res.json();
-          setSummary(data.summary ?? "");
-        }
-      } catch {
-        // Silently fail
-      }
-    }
-
     fetchSession();
     fetchTranscript();
     fetchSummary();
+    // Fallback polling at reduced frequency
     const id = setInterval(() => {
       fetchSession();
       fetchTranscript();
       fetchSummary();
-    }, 5000);
+    }, 30000);
     return () => clearInterval(id);
-  }, [botId]);
+  }, [fetchSession, fetchTranscript, fetchSummary]);
 
   async function handleLeave() {
     setLeaveLoading(true);
@@ -247,7 +278,7 @@ export default function MeetingDetailPage() {
           <div className="px-5 py-8 text-center">
             <p className="text-sm text-muted">No transcript entries yet</p>
             <p className="mt-1 text-xs text-muted/60">
-              Transcript will appear here as people speak in the meeting
+              Transcript will stream in real-time as people speak in the meeting
             </p>
           </div>
         ) : (
@@ -275,6 +306,7 @@ export default function MeetingDetailPage() {
                 </li>
               );
             })}
+            <div ref={transcriptEndRef} />
           </ul>
         )}
       </section>
