@@ -51,7 +51,7 @@ This phase turns Voisli into an MCP (Model Context Protocol) server, allowing Cl
       - Returns speaker-attributed transcript
   - Each tool should have clear descriptions so the AI agent knows when and how to use them
 
-- [ ] Implement MCP resources for dynamic Voisli state:
+- [x] Implement MCP resources for dynamic Voisli state:
   - Add to `server/mcp/tools.ts` or create `server/mcp/resources.ts`:
     - Resource `voisli://status` — returns the bridge server status (active calls, active meetings, configured services)
     - Resource `voisli://calls/active` — returns list of currently active calls with details
