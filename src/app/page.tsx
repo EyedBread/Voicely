@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import StatusCard from "@/components/StatusCard";
 import ActiveCalls from "@/components/ActiveCalls";
 
@@ -13,12 +14,41 @@ interface BridgeStatus {
   };
 }
 
+interface RecentCall {
+  id: string;
+  twilioCallSid: string;
+  status: "connecting" | "active" | "ended";
+  direction: "inbound" | "outbound";
+  purpose?: string;
+  outcome?: string;
+  startedAt: string;
+  endedAt?: string;
+}
+
 const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
 export default function Home() {
   const [status, setStatus] = useState<BridgeStatus | null>(null);
   const [online, setOnline] = useState(false);
+  const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
+  const [callLoading, setCallLoading] = useState(false);
+  const [callResult, setCallResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  const fetchCalls = useCallback(async () => {
+    try {
+      const res = await fetch(`${BRIDGE_URL}/calls`);
+      if (res.ok) {
+        const data = await res.json();
+        setRecentCalls((data.calls ?? []).slice(0, 5));
+      }
+    } catch {
+      // Bridge not available
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchStatus() {
@@ -37,9 +67,44 @@ export default function Home() {
     }
 
     fetchStatus();
-    const id = setInterval(fetchStatus, 5000);
+    fetchCalls();
+    const id = setInterval(() => {
+      fetchStatus();
+      fetchCalls();
+    }, 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [fetchCalls]);
+
+  async function handleTestCall() {
+    setCallLoading(true);
+    setCallResult(null);
+    try {
+      const res = await fetch(`${BRIDGE_URL}/calls/outbound`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          toNumber: "+15551234567",
+          purpose:
+            "Make a reservation for 2 people tonight at 7pm under the name Smith",
+        }),
+      });
+      const data = await res.json();
+      setCallResult({
+        success: res.ok,
+        message: res.ok
+          ? "Test call initiated successfully"
+          : data.error || "Failed to initiate call",
+      });
+      if (res.ok) fetchCalls();
+    } catch {
+      setCallResult({
+        success: false,
+        message: "Could not reach bridge server",
+      });
+    } finally {
+      setCallLoading(false);
+    }
+  }
 
   const twilioReady = status?.configuredServices.twilio ?? false;
   const geminiReady = status?.configuredServices.gemini ?? false;
@@ -82,6 +147,93 @@ export default function Home() {
       {/* Active Calls */}
       <section className="mb-8">
         <ActiveCalls calls={[]} />
+      </section>
+
+      {/* Make a Test Call */}
+      <section className="mb-8 rounded-xl border border-card-border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">
+              Make a Test Call
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Trigger an outbound call to a test restaurant number
+            </p>
+          </div>
+          <button
+            onClick={handleTestCall}
+            disabled={callLoading || !online}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {callLoading ? "Calling..." : "Place Test Call"}
+          </button>
+        </div>
+        {callResult && (
+          <p
+            className={`mt-3 text-sm ${callResult.success ? "text-success" : "text-danger"}`}
+          >
+            {callResult.message}
+          </p>
+        )}
+      </section>
+
+      {/* Recent Call Activity */}
+      <section className="mb-8 rounded-xl border border-card-border bg-card">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
+          <h2 className="text-lg font-semibold text-foreground">
+            Recent Activity
+          </h2>
+          <Link
+            href="/calls"
+            className="text-sm text-accent-light hover:text-accent transition-colors"
+          >
+            View all
+          </Link>
+        </div>
+        {recentCalls.length === 0 ? (
+          <div className="px-5 py-8 text-center">
+            <p className="text-sm text-muted">No recent calls</p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-card-border">
+            {recentCalls.map((call) => (
+              <li key={call.id} className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs ${
+                      call.direction === "inbound"
+                        ? "bg-accent/20 text-accent-light"
+                        : "bg-success/20 text-success"
+                    }`}
+                  >
+                    {call.direction === "inbound" ? "\u2193" : "\u2191"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground capitalize">
+                      {call.direction}
+                    </p>
+                    {call.purpose && (
+                      <p className="text-xs text-muted truncate max-w-xs">
+                        {call.purpose}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <span
+                  className={`text-xs font-medium capitalize ${
+                    call.status === "active"
+                      ? "text-success"
+                      : call.status === "connecting"
+                        ? "text-yellow-400"
+                        : "text-muted"
+                  }`}
+                >
+                  {call.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Quick Setup */}
