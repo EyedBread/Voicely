@@ -70,6 +70,13 @@ export class GeminiLiveSession extends EventEmitter {
       systemInstruction: this.geminiConfig.systemInstruction,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
+      thinkingConfig: { thinkingLevel: "minimal" },
+      automaticActivityDetection: {
+        startOfSpeechSensitivity: "START_OF_SPEECH_SENSITIVITY_HIGH",
+        endOfSpeechSensitivity: "END_OF_SPEECH_SENSITIVITY_HIGH",
+        silenceDurationMs: 500,
+        prefixPaddingMs: 100,
+      },
     };
 
     if (this.geminiConfig.tools && this.geminiConfig.tools.length > 0) {
@@ -146,6 +153,21 @@ export class GeminiLiveSession extends EventEmitter {
         data: base64Audio,
         mimeType: AUDIO_MIME_TYPE,
       },
+    });
+  }
+
+  /**
+   * Sends a text message to Gemini to trigger a response (e.g. "Start talking now").
+   * Uses sendClientContent which adds the message to the conversation context.
+   */
+  sendText(text: string): void {
+    if (!this.session || !this.connected) {
+      return;
+    }
+
+    this.session.sendClientContent({
+      turns: [{ role: "user", parts: [{ text }] }],
+      turnComplete: true,
     });
   }
 
