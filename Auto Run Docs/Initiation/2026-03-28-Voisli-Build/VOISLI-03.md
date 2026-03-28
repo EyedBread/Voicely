@@ -91,7 +91,7 @@ This phase builds the meeting assistant feature: Voisli joins a Google Meet call
   - Update the main dashboard (`src/app/page.tsx`) to show active meetings count alongside active calls
   - Update navigation to include the Meetings page
 
-- [ ] Write tests for the meeting system:
+- [x] Write tests for the meeting system:
   - Create `server/meeting/__tests__/contextManager.test.ts`:
     - Test adding transcript entries and retrieving formatted context
     - Test the rolling window (old entries get trimmed)
@@ -101,5 +101,6 @@ This phase builds the meeting assistant feature: Voisli joins a Google Meet call
     - Test the question detection → AI response → audio output pipeline with mocked Recall.ai and Gemini clients
     - Test cooldown logic
     - Test meeting lifecycle (join → active → leave)
+  <!-- Completed: contextManager.test.ts already existed (16 tests). Created meetingOrchestrator.test.ts with 25 tests covering lifecycle, transcript handling, AI response pipeline, cooldown, and concurrency. All 141 tests pass across 10 test files. -->
 
 - [ ] Run all tests (existing and new) and fix any failures. Verify the bridge server starts with the new meeting endpoints registered. Verify the Next.js dashboard builds and the meetings pages render correctly. Test the meeting join endpoint with a curl command to verify it accepts the right payload format.
