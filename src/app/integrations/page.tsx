@@ -163,26 +163,26 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
       {/* Header */}
       <section className="mb-10 animate-fade-in">
-        <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+        <h1 className="text-3xl font-bold nexgen-heading text-foreground">
           Integrations
         </h1>
-        <p className="mt-2 text-lg text-muted">
+        <p className="mt-2 text-muted">
           Connect Voisli to Claude and other MCP-compatible AI agents
         </p>
       </section>
 
       {/* MCP Setup */}
-      <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
+      <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="h-5 w-5 text-accent-light"
+              className="h-5 w-5 text-accent"
             >
               <path
                 fillRule="evenodd"
@@ -191,7 +191,7 @@ export default function IntegrationsPage() {
               />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-foreground">
+          <h2 className="text-lg font-semibold nexgen-heading text-foreground">
             MCP Server Setup
           </h2>
         </div>
@@ -205,14 +205,8 @@ export default function IntegrationsPage() {
         <ol className="mb-5 space-y-3 text-sm text-muted">
           <Step n={1} text="Make sure the Voisli bridge server is running (npm run dev:server)" />
           <Step n={2} text="Copy the JSON configuration below" />
-          <Step
-            n={3}
-            text="For Claude Desktop: paste into Settings > Developer > MCP Servers config"
-          />
-          <Step
-            n={4}
-            text="For Claude Code: add to your .claude/settings.json or project .mcp.json"
-          />
+          <Step n={3} text="For Claude Desktop: paste into Settings > Developer > MCP Servers config" />
+          <Step n={4} text="For Claude Code: add to your .claude/settings.json or project .mcp.json" />
           <Step n={5} text="Update the cwd path to your local Voisli project directory" />
         </ol>
 
@@ -220,21 +214,21 @@ export default function IntegrationsPage() {
         <div className="relative">
           <button
             onClick={handleCopy}
-            className="absolute right-3 top-3 rounded-md bg-card-border/50 px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
+            className="absolute right-3 top-3 rounded-xl bg-sidebar-bg px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
           >
             {copied ? "Copied!" : "Copy"}
           </button>
-          <pre className="overflow-x-auto rounded-lg border border-card-border bg-background p-4 font-mono text-xs text-foreground leading-relaxed">
+          <pre className="overflow-x-auto rounded-2xl border border-card-border bg-sidebar-bg p-4 font-mono text-xs text-foreground leading-relaxed">
             {MCP_CONFIG}
           </pre>
         </div>
       </section>
 
       {/* Test Connection */}
-      <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
+      <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-lg font-semibold nexgen-heading text-foreground">
               Test Connection
             </h2>
             <p className="mt-1 text-sm text-muted">
@@ -244,7 +238,7 @@ export default function IntegrationsPage() {
           <button
             onClick={handleTestConnection}
             disabled={testing}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="nexgen-btn nexgen-btn-primary px-5 py-2.5 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none"
           >
             {testing ? "Testing..." : "Test Connection"}
           </button>
@@ -259,10 +253,10 @@ export default function IntegrationsPage() {
       </section>
 
       {/* Available Tools */}
-      <section className="mb-8 glass-card rounded-xl animate-fade-in">
-        <div className="border-b border-card-border/50 px-5 py-4">
+      <section className="mb-8 glass-card rounded-2xl animate-fade-in">
+        <div className="border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-success/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-success/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -277,7 +271,7 @@ export default function IntegrationsPage() {
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-lg font-semibold nexgen-heading text-foreground">
                 Available Tools
               </h2>
               <p className="text-sm text-muted">
@@ -286,7 +280,7 @@ export default function IntegrationsPage() {
             </div>
           </div>
         </div>
-        <div className="divide-y divide-card-border/50">
+        <div className="divide-y divide-card-border">
           {TOOLS.map((tool, i) => (
             <div
               key={tool.name}
@@ -294,7 +288,7 @@ export default function IntegrationsPage() {
               style={{ animationDelay: `${i * 30}ms` }}
             >
               <div className="flex items-start gap-3">
-                <code className="shrink-0 rounded bg-background px-2 py-0.5 font-mono text-xs text-accent-light">
+                <code className="shrink-0 rounded-lg bg-sidebar-bg px-2 py-0.5 font-mono text-xs text-accent">
                   {tool.name}
                 </code>
                 <p className="text-sm text-muted">{tool.description}</p>
@@ -303,7 +297,7 @@ export default function IntegrationsPage() {
                 {tool.inputs.map((input) => (
                   <span
                     key={input.name}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-background px-2 py-1 text-xs"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-sidebar-bg px-2 py-1 text-xs"
                     title={input.desc}
                   >
                     <code className="font-mono text-foreground">{input.name}</code>
@@ -320,15 +314,15 @@ export default function IntegrationsPage() {
       </section>
 
       {/* Available Resources */}
-      <section className="mb-8 glass-card rounded-xl animate-fade-in">
-        <div className="border-b border-card-border/50 px-5 py-4">
+      <section className="mb-8 glass-card rounded-2xl animate-fade-in">
+        <div className="border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-accent/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5 text-accent-light"
+                className="h-5 w-5 text-accent"
               >
                 <path d="M21 6.375c0 2.692-4.03 4.875-9 4.875S3 9.067 3 6.375 7.03 1.5 12 1.5s9 2.183 9 4.875z" />
                 <path d="M12 12.75c2.685 0 5.19-.586 7.078-1.609a8.283 8.283 0 001.897-1.384c.016.121.025.244.025.368 0 2.692-4.03 4.875-9 4.875s-9-2.183-9-4.875c0-.124.009-.247.025-.368a8.285 8.285 0 001.897 1.384C6.809 12.164 9.315 12.75 12 12.75z" />
@@ -336,7 +330,7 @@ export default function IntegrationsPage() {
               </svg>
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">
+              <h2 className="text-lg font-semibold nexgen-heading text-foreground">
                 Available Resources
               </h2>
               <p className="text-sm text-muted">
@@ -345,14 +339,14 @@ export default function IntegrationsPage() {
             </div>
           </div>
         </div>
-        <div className="divide-y divide-card-border/50">
+        <div className="divide-y divide-card-border">
           {RESOURCES.map((resource, i) => (
             <div
               key={resource.uri}
               className="flex items-start gap-3 px-5 py-4 animate-fade-in"
               style={{ animationDelay: `${i * 30}ms` }}
             >
-              <code className="shrink-0 rounded bg-background px-2 py-0.5 font-mono text-xs text-accent-light">
+              <code className="shrink-0 rounded-lg bg-sidebar-bg px-2 py-0.5 font-mono text-xs text-accent">
                 {resource.uri}
               </code>
               <p className="text-sm text-muted">{resource.description}</p>
@@ -367,7 +361,7 @@ export default function IntegrationsPage() {
 function Step({ n, text }: { n: number; text: string }) {
   return (
     <li className="flex gap-3">
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-light">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-xs font-bold text-accent">
         {n}
       </span>
       <span>{text}</span>
