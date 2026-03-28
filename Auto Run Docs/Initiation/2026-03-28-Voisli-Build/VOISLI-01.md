@@ -133,7 +133,7 @@ Phone Call ← Twilio ← WebSocket (mulaw 8kHz) ← Bridge Server ← Gemini Li
     - Round-trip test: encode then decode should produce similar values
     - Verify buffer sizes are correct after resampling (2x for upsample, 0.5x for downsample)
 
-- [ ] Wire up the complete call orchestrator and bridge server entry point:
+- [x] Wire up the complete call orchestrator and bridge server entry point:
   - Create `server/callOrchestrator.ts`:
     - Manages the lifecycle of a single call session
     - Accepts a Twilio WebSocket and creates a corresponding Gemini Live session
