@@ -314,18 +314,18 @@ export default function DemoPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
       {/* Hero */}
       <section className="mb-10 animate-fade-in">
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          <h1 className="text-3xl font-bold nexgen-heading text-foreground">
             Demo Day
           </h1>
-          <span className="rounded-full bg-accent/10 px-3 py-1 text-sm font-medium text-accent-light">
+          <span className="rounded-full bg-accent/8 px-3 py-1 text-sm font-medium text-accent">
             Live
           </span>
         </div>
-        <p className="mt-2 text-lg text-muted">
+        <p className="mt-2 text-muted">
           Hackathon presentation control panel &mdash; run all three demo flows
           from one page
         </p>
@@ -338,14 +338,14 @@ export default function DemoPage() {
       </section>
 
       {/* ── Onboarding: Setup Guide ────────────────────────────────── */}
-      <section className="mb-8 glass-card rounded-xl animate-fade-in">
+      <section className="mb-8 glass-card rounded-2xl animate-fade-in">
         <button
           onClick={() => setOnboardingOpen((v) => !v)}
           className="flex w-full items-center justify-between px-5 py-4 text-left"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-accent-light">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5 text-accent">
                 <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 01-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 01-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 01-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584zM12 18a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
               </svg>
             </div>
@@ -374,7 +374,7 @@ export default function DemoPage() {
         </button>
 
         {onboardingOpen && (
-          <div className="border-t border-card-border/50 px-5 py-5 space-y-1">
+          <div className="border-t border-card-border px-5 py-5 space-y-1">
             {/* Step 1: Start Services */}
             <OnboardingStep
               step={1}
@@ -384,8 +384,8 @@ export default function DemoPage() {
               <p className="text-sm text-muted mb-2">
                 The bridge server connects Claude, Twilio, and the dashboard together.
               </p>
-              <div className="rounded-lg border border-card-border bg-background p-3">
-                <code className="font-mono text-xs text-accent-light">npm run dev</code>
+              <div className="rounded-xl border border-card-border bg-sidebar-bg p-3">
+                <code className="font-mono text-xs text-accent">npm run dev</code>
               </div>
               <p className="mt-2 text-xs text-muted/60">
                 Starts both the Next.js dashboard (port 3001) and bridge server (port 8080)
@@ -402,25 +402,25 @@ export default function DemoPage() {
                 Set up Twilio so Claude can make and receive phone calls.
               </p>
               <div className="space-y-2">
-                <div className="rounded-lg border border-card-border bg-background p-3 space-y-1.5">
-                  <p className="text-xs font-medium text-foreground/80">1. Add Twilio credentials to <code className="text-accent-light">.env</code></p>
+                <div className="rounded-xl border border-card-border bg-sidebar-bg p-3 space-y-1.5">
+                  <p className="text-xs font-medium text-foreground/80">1. Add Twilio credentials to <code className="text-accent">.env</code></p>
                   <pre className="font-mono text-[11px] text-muted leading-relaxed">{`TWILIO_ACCOUNT_SID=your_sid
 TWILIO_AUTH_TOKEN=your_token
 TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                 </div>
-                <div className="rounded-lg border border-card-border bg-background p-3 space-y-1.5">
+                <div className="rounded-xl border border-card-border bg-sidebar-bg p-3 space-y-1.5">
                   <p className="text-xs font-medium text-foreground/80">2. Expose the server with ngrok</p>
-                  <code className="font-mono text-[11px] text-accent-light">ngrok http 8080</code>
+                  <code className="font-mono text-[11px] text-accent">ngrok http 8080</code>
                   <p className="text-[11px] text-muted/60 mt-1">
-                    Copy the https URL and set it as <code className="text-accent-light">PUBLIC_SERVER_URL</code> in <code className="text-accent-light">.env</code>
+                    Copy the https URL and set it as <code className="text-accent">PUBLIC_SERVER_URL</code> in <code className="text-accent">.env</code>
                   </p>
                 </div>
-                <div className="rounded-lg border border-card-border bg-background p-3 space-y-1.5">
+                <div className="rounded-xl border border-card-border bg-sidebar-bg p-3 space-y-1.5">
                   <p className="text-xs font-medium text-foreground/80">3. Configure Twilio webhook</p>
                   <p className="text-[11px] text-muted/60">
                     In Twilio Console, set your phone number&apos;s Voice webhook to:
                   </p>
-                  <code className="font-mono text-[11px] text-accent-light">
+                  <code className="font-mono text-[11px] text-accent">
                     {ngrokUrl ? `${ngrokUrl}/twiml` : "{PUBLIC_SERVER_URL}/twiml"}
                   </code>
                 </div>
@@ -430,7 +430,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                 <StatusCheck label="Public URL" ready={!!ngrokUrl} />
                 {twilioNumber && (
                   <span className="text-xs text-muted">
-                    Phone: <code className="text-accent-light">{twilioNumber}</code>
+                    Phone: <code className="text-accent">{twilioNumber}</code>
                   </span>
                 )}
               </div>
@@ -445,17 +445,17 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
               <p className="text-sm text-muted mb-3">
                 Add the Voisli MCP server so Claude can make calls, join meetings, and manage your calendar.
               </p>
-              <div className="rounded-lg border border-card-border bg-background p-3 space-y-1.5">
+              <div className="rounded-xl border border-card-border bg-sidebar-bg p-3 space-y-1.5">
                 <p className="text-xs font-medium text-foreground/80">
                   Add to your Claude Desktop or Claude Code config:
                 </p>
                 <pre className="font-mono text-[11px] text-muted leading-relaxed overflow-x-auto">{MCP_CONFIG}</pre>
               </div>
               <p className="mt-2 text-xs text-muted/60">
-                Once connected, Claude can use <span className="text-accent-light">{MCP_TOOLS.length} tools</span> including{" "}
-                <code className="text-accent-light">make_call</code>,{" "}
-                <code className="text-accent-light">join_meeting</code>, and{" "}
-                <code className="text-accent-light">check_calendar</code>
+                Once connected, Claude can use <span className="text-accent">{MCP_TOOLS.length} tools</span> including{" "}
+                <code className="text-accent">make_call</code>,{" "}
+                <code className="text-accent">join_meeting</code>, and{" "}
+                <code className="text-accent">check_calendar</code>
               </p>
               <div className="mt-3">
                 <StatusCheck label="AI model connected" ready={geminiReady} />
@@ -473,14 +473,14 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                 Everything&apos;s wired up! Try it out:
               </p>
               <div className="flex flex-wrap gap-3">
-                <div className="flex-1 min-w-[200px] rounded-lg border border-card-border bg-background p-3">
+                <div className="flex-1 min-w-[200px] rounded-xl border border-card-border bg-sidebar-bg p-3">
                   <p className="text-xs font-medium text-foreground/80 mb-1">Option A: Call in</p>
                   <p className="text-[11px] text-muted/60">
-                    Call <code className="text-accent-light">{twilioNumber ?? "your Twilio number"}</code> from your phone.
+                    Call <code className="text-accent">{twilioNumber ?? "your Twilio number"}</code> from your phone.
                     The AI assistant will pick up.
                   </p>
                 </div>
-                <div className="flex-1 min-w-[200px] rounded-lg border border-card-border bg-background p-3">
+                <div className="flex-1 min-w-[200px] rounded-xl border border-card-border bg-sidebar-bg p-3">
                   <p className="text-xs font-medium text-foreground/80 mb-1">Option B: Ask Claude</p>
                   <p className="text-[11px] text-muted/60">
                     Tell Claude: &ldquo;Call +1234567890 and make a reservation for 2 tonight at 7pm&rdquo;
@@ -498,15 +498,15 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
       </section>
 
       {/* ── Demo Flow 1: Restaurant Reservation ──────────────────────── */}
-      <section className="mb-8 glass-card rounded-xl animate-fade-in">
-        <div className="flex items-center justify-between border-b border-card-border/50 px-5 py-4">
+      <section className="mb-8 glass-card rounded-2xl animate-fade-in">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5 text-accent-light"
+                className="h-5 w-5 text-accent"
               >
                 <path
                   fillRule="evenodd"
@@ -532,7 +532,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
             {twilioNumber && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted">Twilio #:</span>
-                <code className="rounded bg-background px-2 py-1 font-mono text-sm text-accent-light">
+                <code className="rounded-xl bg-sidebar-bg px-2 py-1 font-mono text-sm text-accent">
                   {twilioNumber}
                 </code>
               </div>
@@ -540,7 +540,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
             <button
               onClick={handleStartCall}
               disabled={callLoading || !serverOnline}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="nexgen-btn nexgen-btn-primary px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none"
             >
               {callLoading ? "Starting..." : "Start Demo Call"}
             </button>
@@ -552,8 +552,8 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
           </div>
 
           {/* Live activity feed */}
-          <div className="rounded-lg border border-card-border/50 bg-background/50">
-            <div className="flex items-center gap-2 border-b border-card-border/30 px-4 py-2">
+          <div className="rounded-2xl border border-card-border bg-card">
+            <div className="flex items-center gap-2 border-b border-card-border px-4 py-2">
               <span className="text-xs font-medium text-muted">
                 Live Activity
               </span>
@@ -592,17 +592,17 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
 
       {/* ── Demo Flow 2: Meeting Assistant ───────────────────────────── */}
       <section
-        className="mb-8 glass-card rounded-xl animate-fade-in"
+        className="mb-8 glass-card rounded-2xl animate-fade-in"
         style={{ animationDelay: "100ms" }}
       >
-        <div className="flex items-center justify-between border-b border-card-border/50 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5 text-accent-light"
+                className="h-5 w-5 text-accent"
               >
                 <path d="M4.5 4.5a3 3 0 00-3 3v9a3 3 0 003 3h8.25a3 3 0 003-3v-9a3 3 0 00-3-3H4.5zM19.94 18.75l-2.69-2.69V7.94l2.69-2.69c.944-.945 2.56-.276 2.56 1.06v11.38c0 1.336-1.616 2.005-2.56 1.06z" />
               </svg>
@@ -626,12 +626,12 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
               value={meetingUrl}
               onChange={(e) => setMeetingUrl(e.target.value)}
               placeholder="Paste Google Meet URL..."
-              className="flex-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="flex-1 nexgen-input rounded-2xl border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/40 transition-all"
             />
             <button
               onClick={handleJoinMeeting}
               disabled={meetingLoading || !serverOnline || !meetingUrl.trim()}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-all hover:bg-accent-light hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="nexgen-btn nexgen-btn-primary px-4 py-2 text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none disabled:hover:shadow-none"
             >
               {meetingLoading ? "Joining..." : "Join Meeting"}
             </button>
@@ -639,7 +639,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
 
           {/* Bot speaking indicator */}
           {botSpeaking && (
-            <div className="mb-3 flex items-center gap-2 rounded-lg bg-success/5 border border-success/20 px-3 py-2 animate-fade-in">
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-success/5 border border-success/15 px-3 py-2 animate-fade-in">
               <div className="flex items-center gap-0.5 h-4">
                 <span className="waveform-bar" />
                 <span className="waveform-bar" />
@@ -658,8 +658,8 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
           )}
 
           {/* Live transcript */}
-          <div className="rounded-lg border border-card-border/50 bg-background/50 mb-4">
-            <div className="flex items-center gap-2 border-b border-card-border/30 px-4 py-2">
+          <div className="rounded-2xl border border-card-border bg-card mb-4">
+            <div className="flex items-center gap-2 border-b border-card-border px-4 py-2">
               <span className="text-xs font-medium text-muted">
                 Live Transcript
               </span>
@@ -682,7 +682,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                       entry.isBotSpeech
                         ? "bg-success/5 border-l-2 border-l-success/40"
                         : entry.isToolInvocation
-                          ? "bg-yellow-500/5"
+                          ? "bg-amber-500/5"
                           : ""
                     }`}
                   >
@@ -692,8 +692,8 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                           entry.isBotSpeech
                             ? "text-success"
                             : entry.isToolInvocation
-                              ? "text-yellow-400"
-                              : "text-accent-light"
+                              ? "text-amber-600"
+                              : "text-accent"
                         }`}
                       >
                         {entry.speaker}
@@ -720,12 +720,12 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
               onChange={(e) => setSimQuestion(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSimulateAsk()}
               placeholder="Simulate a question to the bot..."
-              className="flex-1 rounded-lg border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/40 focus:outline-none focus:ring-2 focus:ring-accent/50"
+              className="flex-1 nexgen-input rounded-2xl border border-card-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/40 transition-all"
             />
             <button
               onClick={handleSimulateAsk}
               disabled={!simQuestion.trim()}
-              className="rounded-lg border border-card-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-all hover:bg-card-border/50 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="nexgen-btn rounded-2xl border border-card-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-sidebar-bg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Ask Bot
             </button>
@@ -738,17 +738,17 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
 
       {/* ── Demo Flow 3: MCP Integration ─────────────────────────────── */}
       <section
-        className="mb-8 glass-card rounded-xl animate-fade-in"
+        className="mb-8 glass-card rounded-2xl animate-fade-in"
         style={{ animationDelay: "200ms" }}
       >
-        <div className="flex items-center justify-between border-b border-card-border/50 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/20">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/10">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="currentColor"
-                className="h-5 w-5 text-accent-light"
+                className="h-5 w-5 text-accent"
               >
                 <path
                   fillRule="evenodd"
@@ -778,9 +778,9 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
               {MCP_TOOLS.map((tool) => (
                 <div
                   key={tool.name}
-                  className="flex items-start gap-2 rounded-lg border border-card-border/30 bg-background/50 px-3 py-2"
+                  className="flex items-start gap-2 rounded-xl border border-card-border bg-card px-3 py-2"
                 >
-                  <code className="shrink-0 rounded bg-card px-1.5 py-0.5 font-mono text-[11px] text-accent-light">
+                  <code className="shrink-0 rounded-xl bg-sidebar-bg px-1.5 py-0.5 font-mono text-[11px] text-accent">
                     {tool.name}
                   </code>
                   <span className="text-xs text-muted">{tool.desc}</span>
@@ -790,8 +790,8 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
           </div>
 
           {/* Live MCP log */}
-          <div className="rounded-lg border border-card-border/50 bg-background/50">
-            <div className="flex items-center gap-2 border-b border-card-border/30 px-4 py-2">
+          <div className="rounded-2xl border border-card-border bg-card">
+            <div className="flex items-center gap-2 border-b border-card-border px-4 py-2">
               <span className="text-xs font-medium text-muted">
                 Live MCP Tool Invocations
               </span>
@@ -814,7 +814,7 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
                     className="flex items-center gap-2 px-4 py-2 animate-slide-in"
                     style={{ animationDelay: `${i * 20}ms` }}
                   >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-yellow-500/20 text-[10px] font-bold text-yellow-400">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-amber-500/10 text-[10px] font-bold text-amber-600">
                       T
                     </span>
                     <span className="flex-1 text-xs text-foreground truncate">
@@ -837,11 +837,11 @@ TWILIO_PHONE_NUMBER=+1xxxxxxxxxx`}</pre>
             <div className="relative">
               <button
                 onClick={handleCopyConfig}
-                className="absolute right-3 top-3 rounded-md bg-card-border/50 px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
+                className="absolute right-3 top-3 rounded-xl bg-sidebar-bg px-2.5 py-1 text-xs font-medium text-muted hover:text-foreground transition-colors"
               >
                 {copied ? "Copied!" : "Copy"}
               </button>
-              <pre className="overflow-x-auto rounded-lg border border-card-border bg-background p-4 font-mono text-xs text-foreground leading-relaxed">
+              <pre className="overflow-x-auto rounded-2xl border border-card-border bg-sidebar-bg p-4 font-mono text-xs text-foreground leading-relaxed">
                 {MCP_CONFIG}
               </pre>
             </div>
@@ -874,9 +874,9 @@ function StatusPill({ label, ready }: { label: string; ready: boolean }) {
 
 function FlowStatusBadge({ status }: { status: DemoStatus }) {
   const styles: Record<DemoStatus, string> = {
-    ready: "bg-muted/10 text-muted",
-    in_progress: "bg-success/10 text-success",
-    completed: "bg-accent/10 text-accent-light",
+    ready: "bg-muted/8 text-muted",
+    in_progress: "bg-success/8 text-success",
+    completed: "bg-accent/8 text-accent",
   };
   const labels: Record<DemoStatus, string> = {
     ready: "Ready",
@@ -996,11 +996,11 @@ function StatusCheck({ label, ready }: { label: string; ready: boolean }) {
 
 function DemoEventIcon({ type }: { type: string }) {
   const iconMap: Record<string, { bg: string; label: string }> = {
-    call_started: { bg: "bg-success/20 text-success", label: "C" },
-    call_ended: { bg: "bg-muted/20 text-muted", label: "C" },
-    tool_invoked: { bg: "bg-yellow-500/20 text-yellow-400", label: "T" },
-    bot_spoke: { bg: "bg-success/20 text-success", label: "B" },
-    error: { bg: "bg-danger/20 text-danger", label: "!" },
+    call_started: { bg: "bg-success/10 text-success", label: "C" },
+    call_ended: { bg: "bg-muted/10 text-muted", label: "C" },
+    tool_invoked: { bg: "bg-amber-500/10 text-amber-600", label: "T" },
+    bot_spoke: { bg: "bg-success/10 text-success", label: "B" },
+    error: { bg: "bg-danger/10 text-danger", label: "!" },
   };
   const { bg, label } = iconMap[type] ?? {
     bg: "bg-muted/20 text-muted",
@@ -1008,7 +1008,7 @@ function DemoEventIcon({ type }: { type: string }) {
   };
   return (
     <span
-      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${bg}`}
+      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-xl text-[10px] font-bold ${bg}`}
     >
       {label}
     </span>

@@ -35,19 +35,18 @@ interface TranscriptEntry {
 const BRIDGE_URL =
   process.env.NEXT_PUBLIC_BRIDGE_SERVER_URL || "http://localhost:8080";
 
-// Consistent speaker colors for transcript
 const SPEAKER_COLORS = [
-  { bg: "bg-violet-500/20", text: "text-violet-400", dot: "bg-violet-400" },
-  { bg: "bg-cyan-500/20", text: "text-cyan-400", dot: "bg-cyan-400" },
-  { bg: "bg-amber-500/20", text: "text-amber-400", dot: "bg-amber-400" },
-  { bg: "bg-rose-500/20", text: "text-rose-400", dot: "bg-rose-400" },
-  { bg: "bg-emerald-500/20", text: "text-emerald-400", dot: "bg-emerald-400" },
-  { bg: "bg-blue-500/20", text: "text-blue-400", dot: "bg-blue-400" },
-  { bg: "bg-orange-500/20", text: "text-orange-400", dot: "bg-orange-400" },
-  { bg: "bg-pink-500/20", text: "text-pink-400", dot: "bg-pink-400" },
+  { bg: "bg-violet-500/10", text: "text-violet-600", dot: "bg-violet-500" },
+  { bg: "bg-cyan-500/10", text: "text-cyan-600", dot: "bg-cyan-500" },
+  { bg: "bg-amber-500/10", text: "text-amber-600", dot: "bg-amber-500" },
+  { bg: "bg-rose-500/10", text: "text-rose-600", dot: "bg-rose-500" },
+  { bg: "bg-emerald-500/10", text: "text-emerald-600", dot: "bg-emerald-500" },
+  { bg: "bg-blue-500/10", text: "text-blue-600", dot: "bg-blue-500" },
+  { bg: "bg-orange-500/10", text: "text-orange-600", dot: "bg-orange-500" },
+  { bg: "bg-pink-500/10", text: "text-pink-600", dot: "bg-pink-500" },
 ];
 
-const BOT_COLOR = { bg: "bg-success/20", text: "text-success", dot: "bg-success" };
+const BOT_COLOR = { bg: "bg-success/10", text: "text-success", dot: "bg-success" };
 
 function getSpeakerColor(speaker: string, speakerMap: Map<string, number>) {
   if (speaker.toLowerCase().includes("voisli") || speaker.toLowerCase().includes("bot")) {
@@ -113,7 +112,6 @@ export default function MeetingDetailPage() {
     }
   }, [botId]);
 
-  // Real-time event handler — stream transcript updates live
   const handleEvent = useCallback(
     (event: ServerEvent) => {
       if (event.type === "transcript_update" && event.data.botId === botId) {
@@ -191,7 +189,6 @@ export default function MeetingDetailPage() {
     session?.status === "joining" ||
     session?.status === "in_call";
 
-  // Memoize speaker colors for stable rendering
   const speakerColors = useMemo(() => {
     const map = speakerMapRef.current;
     return transcript.map((entry) => getSpeakerColor(entry.speaker, map));
@@ -199,8 +196,8 @@ export default function MeetingDetailPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <div className="glass-card rounded-xl px-5 py-10 text-center animate-fade-in">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
+        <div className="glass-card rounded-2xl px-5 py-10 text-center animate-fade-in">
           <div className="mx-auto h-8 w-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
           <p className="mt-3 text-sm text-muted">Loading meeting...</p>
         </div>
@@ -210,9 +207,9 @@ export default function MeetingDetailPage() {
 
   if (error || !session) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-10">
-        <div className="glass-card rounded-xl px-5 py-10 text-center animate-fade-in">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-danger/10">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
+        <div className="glass-card rounded-2xl px-5 py-10 text-center animate-fade-in">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-danger/8">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-danger">
               <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
             </svg>
@@ -220,7 +217,7 @@ export default function MeetingDetailPage() {
           <p className="mt-3 text-sm text-danger">{error || "Meeting not found"}</p>
           <Link
             href="/meetings"
-            className="mt-3 inline-block text-sm text-accent-light hover:text-accent transition-colors"
+            className="mt-3 inline-block text-sm font-medium text-accent hover:text-accent-light transition-colors"
           >
             Back to meetings
           </Link>
@@ -232,7 +229,7 @@ export default function MeetingDetailPage() {
   const startDate = new Date(session.startedAt);
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-8 py-6 md:py-10">
       {/* Breadcrumb */}
       <div className="mb-6 animate-fade-in">
         <Link
@@ -247,7 +244,7 @@ export default function MeetingDetailPage() {
       <section className="mb-8 flex items-start justify-between gap-4 animate-fade-in">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h1 className="text-3xl font-bold nexgen-heading text-foreground">
               Meeting
             </h1>
             <MeetingStatusBadge status={session.status} />
@@ -263,7 +260,7 @@ export default function MeetingDetailPage() {
           <button
             onClick={handleLeave}
             disabled={leaveLoading}
-            className="rounded-lg bg-danger px-4 py-2 text-sm font-medium text-white transition-all hover:bg-danger/80 hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            className="nexgen-btn rounded-2xl bg-danger px-4 py-2 text-sm font-medium text-white transition-all hover:bg-danger/80 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {leaveLoading ? "Leaving..." : "Leave Meeting"}
           </button>
@@ -272,9 +269,9 @@ export default function MeetingDetailPage() {
 
       {/* Info Cards */}
       <section className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="glass-card rounded-xl p-5 animate-fade-in">
-          <p className="text-xs font-medium text-muted">Status</p>
-          <p className="mt-1 flex items-center gap-2">
+        <div className="glass-card rounded-2xl p-5 animate-fade-in">
+          <p className="section-label">Status</p>
+          <p className="mt-2 flex items-center gap-2">
             <span className="text-lg font-semibold text-foreground capitalize">
               {session.status.replace("_", " ")}
             </span>
@@ -283,15 +280,15 @@ export default function MeetingDetailPage() {
             )}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-5 animate-fade-in" style={{ animationDelay: "50ms" }}>
-          <p className="text-xs font-medium text-muted">Participants</p>
-          <p className="mt-1 text-lg font-semibold text-foreground tabular-nums">
+        <div className="glass-card rounded-2xl p-5 animate-fade-in" style={{ animationDelay: "50ms" }}>
+          <p className="section-label">Participants</p>
+          <p className="mt-2 text-lg font-semibold text-foreground tabular-nums">
             {session.participants.length}
           </p>
         </div>
-        <div className="glass-card rounded-xl p-5 animate-fade-in" style={{ animationDelay: "100ms" }}>
-          <p className="text-xs font-medium text-muted">Transcript Lines</p>
-          <p className="mt-1 text-lg font-semibold text-foreground tabular-nums">
+        <div className="glass-card rounded-2xl p-5 animate-fade-in" style={{ animationDelay: "100ms" }}>
+          <p className="section-label">Transcript Lines</p>
+          <p className="mt-2 text-lg font-semibold text-foreground tabular-nums">
             {transcript.length}
           </p>
         </div>
@@ -299,13 +296,13 @@ export default function MeetingDetailPage() {
 
       {/* Participants */}
       {session.participants.length > 0 && (
-        <section className="mb-8 glass-card rounded-xl animate-fade-in">
-          <div className="border-b border-card-border/50 px-5 py-4">
-            <h2 className="text-lg font-semibold text-foreground">
+        <section className="mb-8 glass-card rounded-2xl animate-fade-in">
+          <div className="border-b border-card-border px-5 py-4">
+            <h2 className="text-lg font-semibold nexgen-heading text-foreground">
               Participants
             </h2>
           </div>
-          <ul className="divide-y divide-card-border/50">
+          <ul className="divide-y divide-card-border">
             {session.participants.map((p, i) => {
               const color = getSpeakerColor(p.name, speakerMapRef.current);
               return (
@@ -314,7 +311,7 @@ export default function MeetingDetailPage() {
                   className="flex items-center gap-3 px-5 py-3 animate-fade-in"
                   style={{ animationDelay: `${i * 40}ms` }}
                 >
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${color.bg} text-xs font-bold ${color.text}`}>
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${color.bg} text-xs font-bold ${color.text}`}>
                     {p.name.charAt(0).toUpperCase()}
                   </span>
                   <span className="text-sm text-foreground">{p.name}</span>
@@ -327,8 +324,8 @@ export default function MeetingDetailPage() {
 
       {/* Summary */}
       {summary && (
-        <section className="mb-8 glass-card rounded-xl p-6 animate-fade-in">
-          <h2 className="text-lg font-semibold text-foreground">
+        <section className="mb-8 glass-card rounded-2xl p-6 animate-fade-in">
+          <h2 className="text-lg font-semibold nexgen-heading text-foreground">
             AI Summary
           </h2>
           <p className="mt-3 text-sm text-muted whitespace-pre-wrap leading-relaxed">
@@ -338,10 +335,10 @@ export default function MeetingDetailPage() {
       )}
 
       {/* Transcript */}
-      <section className="glass-card rounded-xl animate-fade-in">
-        <div className="border-b border-card-border/50 px-5 py-4">
+      <section className="glass-card rounded-2xl animate-fade-in">
+        <div className="border-b border-card-border px-5 py-4">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 className="text-lg font-semibold nexgen-heading text-foreground">
               Live Transcript
             </h2>
             {isActive && (
@@ -351,8 +348,8 @@ export default function MeetingDetailPage() {
         </div>
         {transcript.length === 0 ? (
           <div className="px-5 py-8 text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted/10">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-muted/30">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/8">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-6 w-6 text-muted/40">
                 <path d="M8.25 4.5a3.75 3.75 0 117.5 0v8.25a3.75 3.75 0 11-7.5 0V4.5z" />
                 <path d="M6 10.5a.75.75 0 01.75.75v1.5a5.25 5.25 0 1010.5 0v-1.5a.75.75 0 011.5 0v1.5a6.751 6.751 0 01-6 6.709v2.291h3a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h3v-2.291a6.751 6.751 0 01-6-6.709v-1.5A.75.75 0 016 10.5z" />
               </svg>
@@ -363,23 +360,19 @@ export default function MeetingDetailPage() {
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-card-border/30 max-h-[36rem] overflow-y-auto scroll-shadow">
+          <ul className="divide-y divide-card-border/50 max-h-[36rem] overflow-y-auto scroll-shadow">
             {transcript.map((entry, i) => {
               const time = new Date(entry.timestamp);
               const color = speakerColors[i];
 
-              // Tool invocation inline card
               if (entry.isToolInvocation) {
                 return (
-                  <li
-                    key={i}
-                    className="px-5 py-2 animate-slide-in"
-                  >
-                    <div className="flex items-center gap-2 rounded-lg bg-yellow-500/5 border border-yellow-500/20 px-3 py-2">
-                      <span className="flex h-5 w-5 items-center justify-center rounded bg-yellow-500/20 text-[10px] font-bold text-yellow-400">
+                  <li key={i} className="px-5 py-2 animate-slide-in">
+                    <div className="flex items-center gap-2 rounded-xl bg-amber-500/5 border border-amber-500/15 px-3 py-2">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-amber-500/10 text-[10px] font-bold text-amber-600">
                         T
                       </span>
-                      <span className="text-xs text-yellow-400 font-medium">
+                      <span className="text-xs text-amber-600 font-medium">
                         Tool: {entry.toolName}
                       </span>
                       {entry.toolResult && (
@@ -395,15 +388,14 @@ export default function MeetingDetailPage() {
                 );
               }
 
-              // Bot spoke — highlighted background
               if (entry.isBotSpeech) {
                 return (
                   <li
                     key={i}
-                    className="px-5 py-3 bg-success/5 border-l-2 border-l-success/40 animate-slide-in"
+                    className="px-5 py-3 bg-success/3 border-l-2 border-l-success/30 animate-slide-in"
                   >
                     <div className="flex items-start gap-3">
-                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${BOT_COLOR.bg} text-xs font-bold ${BOT_COLOR.text} mt-0.5`}>
+                      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-xl ${BOT_COLOR.bg} text-xs font-bold ${BOT_COLOR.text} mt-0.5`}>
                         V
                       </span>
                       <div className="min-w-0">
@@ -411,7 +403,7 @@ export default function MeetingDetailPage() {
                           <span className={`text-xs font-medium ${BOT_COLOR.text}`}>
                             {entry.speaker}
                           </span>
-                          <span className="rounded-full bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success">
+                          <span className="rounded-full bg-success/8 px-1.5 py-0.5 text-[10px] font-medium text-success">
                             AI Response
                           </span>
                           <span className="text-xs text-muted/60 tabular-nums">
@@ -425,11 +417,10 @@ export default function MeetingDetailPage() {
                 );
               }
 
-              // Regular transcript entry with speaker colors
               return (
                 <li key={i} className="px-5 py-3 animate-fade-in">
                   <div className="flex items-start gap-3">
-                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${color.bg} text-xs font-bold ${color.text} mt-0.5`}>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-xl ${color.bg} text-xs font-bold ${color.text} mt-0.5`}>
                       {entry.speaker.charAt(0).toUpperCase()}
                     </span>
                     <div className="min-w-0">
@@ -457,12 +448,12 @@ export default function MeetingDetailPage() {
 
 function MeetingStatusBadge({ status }: { status: MeetingBotStatus }) {
   const styles: Record<MeetingBotStatus, string> = {
-    creating: "bg-yellow-500/10 text-yellow-400",
-    joining: "bg-yellow-500/10 text-yellow-400",
-    in_call: "bg-success/10 text-success",
-    leaving: "bg-muted/10 text-muted",
-    done: "bg-muted/10 text-muted",
-    error: "bg-danger/10 text-danger",
+    creating: "bg-amber-500/8 text-amber-600",
+    joining: "bg-amber-500/8 text-amber-600",
+    in_call: "bg-success/8 text-success",
+    leaving: "bg-muted/8 text-muted",
+    done: "bg-muted/8 text-muted",
+    error: "bg-danger/8 text-danger",
   };
 
   const labels: Record<MeetingBotStatus, string> = {
@@ -475,8 +466,8 @@ function MeetingStatusBadge({ status }: { status: MeetingBotStatus }) {
   };
 
   const dotColors: Record<MeetingBotStatus, string> = {
-    creating: "bg-yellow-500 animate-pulse-dot",
-    joining: "bg-yellow-500 animate-pulse-dot",
+    creating: "bg-amber-500 animate-pulse-dot",
+    joining: "bg-amber-500 animate-pulse-dot",
     in_call: "bg-success animate-pulse-dot",
     leaving: "bg-muted",
     done: "bg-muted",
